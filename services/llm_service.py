@@ -1,6 +1,6 @@
 from groq import Groq, APIStatusError
 from core.config import settings
-from core.prompts import get_interview_answer_prompt, get_quick_response_prompt, is_complex_question
+from core.prompts import get_interview_answer_prompt, get_quick_response_prompt, is_complex_question, detect_question_type
 from typing import Dict, List
 
 # Global conversation history storage
@@ -64,11 +64,14 @@ def get_ai_answer(question: str, context: dict) -> str:
         
         client = Groq(api_key=settings.GROQ_API_KEY)
         
-        # Determine if this needs full context or can use quick response
+        # Determine question type and complexity
+        question_type = detect_question_type(question)
         is_complex = is_complex_question(question)
-        use_full_context = is_complex and settings.PERSONALIZE_ANSWERS
         
-        if use_full_context:
+        print(f"🧠 Question type: {question_type.upper()}, Complex: {is_complex}")
+        
+        # ALWAYS use full context with candidate profile - this ensures AI knows about VitalBite project etc.
+        if settings.PERSONALIZE_ANSWERS:
             prompt = get_interview_answer_prompt(question, context, conversation_history)
         else:
             prompt = get_quick_response_prompt(question, context)  # Pass context for basic personalization
@@ -80,11 +83,9 @@ def get_ai_answer(question: str, context: dict) -> str:
                     "content": prompt,
                 }
             ],
-            model="llama3-8b-8192",  # Fast model
-            temperature=0.4,  # Slightly higher for more natural responses
-            # Remove restrictive token limits - let AI decide appropriate length
-            # max_tokens=max_tokens,  # Commented out for dynamic length
-            top_p=0.9,       # Allow for more creativity in full answers
+            model="llama-3.3-70b-versatile",  # Reliable model for better accuracy and longer answers
+            temperature=0.3,  # Keep it focused
+            top_p=0.9,
         )
         
         answer = chat_completion.choices[0].message.content
