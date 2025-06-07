@@ -75,9 +75,67 @@ def get_interview_answer_prompt(question: str, context: dict, conversation_histo
     # Build the comprehensive prompt
     prompt_parts = []
     
-    # System role
+    # System role with comprehensive technical instructions
     prompt_parts.append("""You are an expert interview coach providing real-time assistance during a live job interview.
-Your goal is to help the candidate give the best possible answer to the interviewer's question.""")
+Your goal is to help the candidate give the best possible answer to the interviewer's question.
+
+COMPREHENSIVE TECHNICAL INTERVIEW GUIDELINES:
+
+FOR CODING/ALGORITHM QUESTIONS:
+- Start with brief problem understanding and clarification
+- Provide intuitive explanation of the approach first
+- Give at least 2 different solutions when applicable (brute force → optimized)
+- Write clean, working code in the EXACT programming language specified
+- Include time and space complexity analysis for each approach
+- Explain the thought process and why you chose each approach
+- Add comments in code for clarity
+- Mention edge cases and how to handle them
+
+FOR DATA STRUCTURES & ALGORITHMS (DSA):
+- Explain which data structure/algorithm fits best and why
+- Discuss trade-offs between different approaches
+- Provide complexity analysis (Big O notation)
+- Include implementation details and optimizations
+- Mention real-world applications where this would be useful
+
+FOR SYSTEM DESIGN QUESTIONS:
+- Start with requirements gathering and clarification
+- Design high-level architecture first, then dive into components
+- Discuss scalability, reliability, and performance considerations
+- Choose appropriate databases, caching strategies, load balancing
+- Address bottlenecks and how to handle them
+- Include technology stack recommendations with justifications
+- Discuss monitoring, logging, and deployment strategies
+
+FOR TECHNICAL Q&A/CONCEPTS:
+- Provide clear, precise definitions
+- Explain use cases and practical applications
+- Compare with alternatives (pros/cons)
+- Give real-world examples from your experience
+- Mention best practices and common pitfalls
+- Include relevant technologies and frameworks
+
+FOR API DESIGN QUESTIONS:
+- Follow RESTful principles and industry standards
+- Design proper URL structure and HTTP methods
+- Include request/response examples with JSON schemas
+- Discuss authentication, authorization, and security
+- Address versioning, rate limiting, and error handling
+- Consider scalability and performance optimizations
+
+FOR FRONTEND/BACKEND TECHNICAL QUESTIONS:
+- Mention specific frameworks, libraries, and tools
+- Discuss performance optimizations and best practices
+- Include code examples when relevant
+- Address cross-browser compatibility, responsive design (frontend)
+- Discuss security, databases, and architecture patterns (backend)
+
+GENERAL APPROACH:
+- Always be authentic and use real experiences from the candidate's background
+- Structure answers clearly with logical flow
+- Be concise but comprehensive - avoid unnecessary fluff
+- Show depth of knowledge while remaining practical
+- Demonstrate problem-solving thinking process""")
     
     # Candidate profile (if personalization is enabled)
     candidate_profile = build_candidate_profile(context)
@@ -93,101 +151,25 @@ Your goal is to help the candidate give the best possible answer to the intervie
     # Current question
     prompt_parts.append(f"CURRENT INTERVIEWER QUESTION: \"{question}\"")
     
-    # Get question type for specialized instructions
-    question_type = detect_question_type(question)
-    
-    # Instructions for response based on question type
+    # Final instructions - let AI intelligently handle question type based on system guidelines
     if settings.GENERATE_FULL_ANSWERS:
-        if question_type == 'coding':
-            prompt_parts.append(f"""
-INSTRUCTIONS FOR CODING QUESTION:
-Provide a complete, comprehensive coding answer. The response should include:
+        prompt_parts.append("""
+RESPONSE INSTRUCTIONS:
+Based on the question type, follow the appropriate guidelines above. Always:
 
-1. **Language Recognition**: Pay CLOSE attention to the programming language mentioned in the question
-2. **Multiple Approaches**: Provide at least 2 different solutions (e.g., iterative vs recursive, brute force vs optimized)
-3. **Complete Code**: Write fully functional, syntactically correct code in the EXACT language requested
-4. **Complexity Analysis**: Include time and space complexity for each approach
-5. **Explanation**: Brief explanation of how the algorithm works
-6. **Best Practices**: Use clean, readable code with proper variable names
+- Use the candidate's REAL background, projects, and experience from their resume
+- Be authentic and specific - don't make up fake scenarios
+- Apply the technical guidelines automatically based on question context
+- Write as if you ARE the candidate speaking directly to the interviewer
+- Be conversational yet professional
 
-CRITICAL: If the question specifies a programming language (e.g., "JavaScript", "Python", "Java"), 
-use ONLY that language. Do not provide code in a different language.
-
-ANSWER FORMAT:
-Structure your response as:
-- Brief explanation of the problem
-- Approach 1: [Method name] with code and complexity
-- Approach 2: [Method name] with code and complexity  
-- Recommendation of which approach to use and why
-
-COMPLETE CODING ANSWER:""")
-        
-        elif question_type == 'system_design':
-            prompt_parts.append("""
-INSTRUCTIONS FOR SYSTEM DESIGN QUESTION:
-Provide a comprehensive system design answer that includes:
-
-1. **Requirements Clarification**: What are the key functional and non-functional requirements?
-2. **High-Level Architecture**: Main components and their interactions
-3. **Database Design**: What type of database(s) and why
-4. **Scalability Considerations**: How to handle growth
-5. **Technology Choices**: Specific technologies and justification
-6. **Trade-offs**: Discuss pros/cons of design decisions
-
-COMPLETE SYSTEM DESIGN ANSWER:""")
-        
-        elif question_type == 'technical':
-            prompt_parts.append("""
-INSTRUCTIONS FOR TECHNICAL QUESTION:
-Provide a detailed technical answer that includes:
-
-1. **Clear Definition**: Explain the concept clearly
-2. **Use Cases**: When and why it's used
-3. **Advantages/Disadvantages**: Pros and cons
-4. **Real-world Examples**: Practical applications
-5. **Best Practices**: How to implement it well
-6. **Related Technologies**: What it works with
-
-COMPLETE TECHNICAL ANSWER:""")
-        
-        elif question_type == 'behavioral':
-            prompt_parts.append("""
-INSTRUCTIONS FOR BEHAVIORAL QUESTION:
-Provide a complete behavioral answer using the STAR method:
-
-1. **Situation**: Set the context
-2. **Task**: Explain what needed to be done
-3. **Action**: Describe what you specifically did
-4. **Result**: Share the outcome and what you learned
-
-Use the candidate's background and experience from their resume.
-
-COMPLETE BEHAVIORAL ANSWER:""")
-        
-        else:  # general questions
-            prompt_parts.append("""
-INSTRUCTIONS:
-Provide a complete, professional answer that the candidate can use verbatim. The answer should:
-
-1. DIRECTLY address the question asked
-2. Be tailored to the candidate's background and the target role
-3. Demonstrate relevant skills and experience from their resume
-4. Use specific examples when appropriate
-5. Be conversational and natural (avoid being overly formal)
-6. Be concise but comprehensive
-
-ANSWER FORMAT:
-Provide ONLY the answer the candidate should give. Do NOT include phrases like "You should say" or "Suggest saying". 
-Write as if you ARE the candidate speaking directly to the interviewer.
-
-COMPLETE, DETAILED, AND PROFESSIONAL ANSWER:""")
+COMPLETE ANSWER:""")
     else:
         prompt_parts.append("""
-INSTRUCTIONS:
-Provide a brief suggestion or key talking points for answering this question.
-Keep it concise and actionable.
+BRIEF RESPONSE:
+Provide a concise, authentic answer based on the candidate's real background.
 
-SUGGESTION:""")
+ANSWER:""")
     
     return "\n".join(prompt_parts)
 
@@ -231,60 +213,4 @@ Give a professional answer that draws from your actual background and projects. 
 
 Answer:"""
 
-def detect_question_type(question: str) -> str:
-    """
-    Detects the type of interview question for specialized handling.
-    """
-    question_lower = question.lower()
-    
-    # Coding question indicators
-    coding_indicators = [
-        'write', 'code', 'implement', 'algorithm', 'function', 'method', 'program',
-        'javascript', 'python', 'java', 'c++', 'react', 'node', 'html', 'css',
-        'array', 'string', 'linked list', 'tree', 'graph', 'sort', 'search',
-        'leetcode', 'hackerrank', 'binary search', 'merge sort', 'fibonacci',
-        'reverse', 'palindrome', 'duplicate', 'largest', 'smallest', 'sum',
-        'find the', 'return the', 'given an array', 'given a string', 'hashmap'
-    ]
-    
-    # System design indicators
-    system_design_indicators = [
-        'design', 'architecture', 'system', 'scale', 'database', 'api',
-        'microservices', 'load balancer', 'cache', 'redis', 'mongodb',
-        'scalability', 'high availability', 'distributed', 'messaging'
-    ]
-    
-    # Technical knowledge indicators
-    technical_indicators = [
-        'what is', 'difference between', 'explain', 'how does', 'when to use',
-        'pros and cons', 'advantages', 'disadvantages', 'framework', 'library',
-        'protocol', 'rest', 'graphql', 'oauth', 'jwt', 'cors', 'https'
-    ]
-    
-    # Behavioral/experience indicators
-    behavioral_indicators = [
-        'tell me about', 'describe', 'walk me through', 'give me an example',
-        'how would you', 'what would you do', 'how do you handle', 'what is your experience',
-        'why do you want', 'why should we hire', 'what are your', 'where do you see yourself',
-        'introduction', 'introduce yourself', 'about yourself', 'background',
-        'challenge', 'conflict', 'mistake', 'failure', 'success'
-    ]
-    
-    if any(indicator in question_lower for indicator in coding_indicators):
-        return 'coding'
-    elif any(indicator in question_lower for indicator in system_design_indicators):
-        return 'system_design'
-    elif any(indicator in question_lower for indicator in technical_indicators):
-        return 'technical'
-    elif any(indicator in question_lower for indicator in behavioral_indicators):
-        return 'behavioral'
-    else:
-        return 'general'
-
-def is_complex_question(question: str) -> bool:
-    """
-    Determines if a question requires the full context treatment or can use a quick response.
-    """
-    question_type = detect_question_type(question)
-    # All types except general are considered complex
-    return question_type != 'general'
+# Removed manual question categorization - AI now handles this intelligently

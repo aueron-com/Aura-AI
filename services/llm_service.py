@@ -1,6 +1,6 @@
 from groq import Groq, APIStatusError
 from core.config import settings
-from core.prompts import get_interview_answer_prompt, get_quick_response_prompt, is_complex_question, detect_question_type
+from core.prompts import get_interview_answer_prompt, get_quick_response_prompt
 from typing import Dict, List
 
 # Global conversation history storage
@@ -63,12 +63,6 @@ def get_ai_answer(question: str, context: dict) -> str:
         add_to_conversation_history(interviewer_question=question)
         
         client = Groq(api_key=settings.GROQ_API_KEY)
-        
-        # Determine question type and complexity
-        question_type = detect_question_type(question)
-        is_complex = is_complex_question(question)
-        
-        print(f"🧠 Question type: {question_type.upper()}, Complex: {is_complex}")
         
         # ALWAYS use full context with candidate profile - this ensures AI knows about VitalBite project etc.
         if settings.PERSONALIZE_ANSWERS:

@@ -74,8 +74,8 @@ class DeepgramManager:
             diarize=True,
             punctuate=True,
             # Critical speech detection parameters
-            utterance_end_ms=1200,    # Wait 1.2 seconds after speech ends to finalize
-            endpointing=800,          # Wait 0.8 seconds of silence before endpoint detection
+            utterance_end_ms=1800,    # Wait 1.2 seconds after speech ends to finalize
+            endpointing=1100,          # Wait 0.8 seconds of silence before endpoint detection
             # Additional settings
             vad_events=True,          # Enable VAD for better pause handling
             interim_results=True,     # Enable interim results for real-time feedback
