@@ -215,6 +215,7 @@
     opacity: 0;
     animation: fadeInUp 0.6s ease forwards;
     box-sizing: border-box;
+    min-width: 0; /* Critical fix for flexbox wrapping */
 }
 
 .message:last-child {
@@ -276,9 +277,11 @@
 .streaming-text {
     font-size: clamp(0.9rem, 2.5vw, 1.1rem);
     line-height: 1.6;
-    overflow: hidden;
     word-break: break-word;
     hyphens: auto;
+    /* Ensure wrapping is respected */
+    white-space: pre-wrap;
+    overflow-wrap: break-word;
 }
 
 .streaming-text .word {
@@ -295,7 +298,7 @@
 .message .code-block {
     margin: 1rem 0;
     border-radius: 4px;
-    overflow: hidden;
+    /* REMOVED overflow: hidden to prevent clipping */
     background: rgba(0, 0, 0, var(--code-transparency));
     border: 1px solid var(--border-color);
     backdrop-filter: blur(10px);
@@ -342,20 +345,25 @@
 .code-block pre {
     margin: 0;
     padding: clamp(0.5rem, 2vw, 1rem);
-    overflow-x: auto;
     font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
-    white-space: pre-wrap;
-    word-wrap: break-word;
     font-size: clamp(0.7rem, 2vw, 0.9rem);
     line-height: 1.5;
+    
+    /* Ensure code wraps correctly */
     white-space: pre-wrap;
-    word-wrap: break-word;
+    overflow-wrap: break-word;
+    word-break: break-word; /* For compatibility */
     max-width: 100%;
+    overflow-x: hidden; /* Prevent any horizontal scrolling */
 }
 
 .code-block pre code {
     background: none;
     color: inherit;
+    /* Ensure wrapping on the code tag itself */
+    white-space: pre-wrap;
+    overflow-wrap: break-word;
+    word-break: break-word;
 }
 
 /* Complexity Analysis */

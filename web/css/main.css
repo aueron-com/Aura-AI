@@ -211,7 +211,9 @@ textarea::placeholder {
 /* Professional validation states with sharp geometric indicators */
 input:required:invalid:not(:focus):not(:placeholder-shown),
 textarea:required:invalid:not(:focus):not(:placeholder-shown),
-select:required:invalid:not(:focus) {
+/* Custom invalid styling for inputs, but EXCLUDING select to avoid conflicts */
+input:required:invalid:not(:focus):not(:placeholder-shown),
+textarea:required:invalid:not(:focus):not(:placeholder-shown) {
     border-left: 3px solid var(--accent-warning);
     background: rgba(255, 107, 53, 0.02);
 }
@@ -245,8 +247,12 @@ select {
 }
 
 select:focus {
-    outline: none; /* Removes the default blue box */
+    outline: none !important; /* Force remove default outline */
     background-image: url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%230066ff' d='M6 8L2 4h8z'/%3E%3C/svg%3E");
+    border-color: var(--accent-primary);
+    box-shadow:
+        0 0 0 1px var(--accent-primary),
+        inset 0 0 0 1px rgba(0, 102, 255, 0.1);
 }
 
 /* Styling for dropdown options for readability */
@@ -609,6 +615,11 @@ button.loading::after {
 *:focus-visible {
     outline: 1px solid var(--accent-primary);
     outline-offset: 1px;
+}
+
+/* Override for select to use box-shadow instead */
+select:focus-visible {
+    outline: none;
 }
 
 /* ===== SELECTION STYLING ===== */
