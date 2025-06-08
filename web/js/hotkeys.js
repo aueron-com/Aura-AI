@@ -60,10 +60,6 @@ class HotkeyManager {
                     this.hideTransparencyHint();
                     break;
                 case 't':
-                case 'T':
-                    this.toggleAlwaysOnTop();
-                    event.preventDefault();
-                    break;
             }
         }
     }
@@ -131,7 +127,6 @@ class HotkeyManager {
                 <div class="hint-controls">
                     <span class="hint-key">Alt+L + [</span> Less Transparent
                     <span class="hint-key">Alt+L + ]</span> More Transparent
-                    <span class="hint-key">Alt+L + T</span> Toggle Always On Top
                     <span class="hint-key">Alt+M</span> Toggle Microphone Mute
                 </div>
                 <div class="hint-level">Level: ${this.currentTransparencyLevel + 1}/5 (${Math.round(this.transparencyLevels[this.currentTransparencyLevel] * 100)}%)</div>
@@ -221,46 +216,6 @@ class HotkeyManager {
         }
     }
 
-    async toggleAlwaysOnTop() {
-        this.isAlwaysOnTop = !this.isAlwaysOnTop;
-        
-        try {
-            const response = await fetch('/api/window/always-on-top', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ on_top: this.isAlwaysOnTop })
-            });
-            
-            if (response.ok) {
-                const status = this.isAlwaysOnTop ? "enabled" : "disabled";
-                devLog(`📌 Always on top ${status} via hotkey`);
-                this.showAlwaysOnTopFeedback(this.isAlwaysOnTop);
-            }
-        } catch (error) {
-            console.error('❌ Error toggling always on top via hotkey:', error);
-        }
-    }
-
-    showAlwaysOnTopFeedback(isOnTop) {
-        this.removeExistingFeedback();
-        
-        const feedback = document.createElement('div');
-        feedback.id = 'transparency-feedback';
-        feedback.innerHTML = `
-            <div class="transparency-feedback">
-                📌 Always On Top ${isOnTop ? 'Enabled' : 'Disabled'}
-            </div>
-        `;
-        
-        document.body.appendChild(feedback);
-        
-        // Auto-hide after 2 seconds
-        setTimeout(() => {
-            if (feedback.parentNode) {
-                feedback.remove();
-            }
-        }, 2000);
-    }
 
     toggleMicrophoneMute() {
         // Only allow mute toggle during live interview

@@ -82,16 +82,6 @@ async def make_opaque():
     else:
         raise HTTPException(status_code=400, detail="Failed to set transparency")
 
-@router.post("/api/window/always-on-top")
-async def set_always_on_top(request: dict):
-    """Set window to always stay on top"""
-    on_top = request.get("on_top", True)
-    success = window_manager.set_app_always_on_top(on_top)
-    if success:
-        status = "enabled" if on_top else "disabled"
-        return {"success": True, "message": f"Always on top {status}"}
-    else:
-        raise HTTPException(status_code=400, detail="Failed to set always on top")
 
 @router.post("/api/interview/start")
 async def start_interview_mode():

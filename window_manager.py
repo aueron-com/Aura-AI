@@ -50,7 +50,7 @@ class WindowManager:
     def __init__(self):
         self.hwnd: Optional[int] = None
         self.is_windows = platform.system() == "Windows"
-        self.current_transparency = 1.0  # 1.0 = opaque, 0.0 = transparent
+        self.current_transparency = 1.0 # 1.0 = opaque, 0.0 = transparent
         
         # Windows API constants
         if self.is_windows:
@@ -69,6 +69,10 @@ class WindowManager:
             self.SetWindowLongW = self.user32.SetWindowLongW
             self.SetLayeredWindowAttributes = self.user32.SetLayeredWindowAttributes
             self.SetWindowPos = self.user32.SetWindowPos
+            
+            # CRITICAL FIX: Define argtypes for SetWindowPos to prevent Error 1400
+            self.SetWindowPos.argtypes = [wintypes.HWND, wintypes.HWND, wintypes.INT, wintypes.INT, wintypes.INT, wintypes.INT, wintypes.UINT]
+            self.SetWindowPos.restype = wintypes.BOOL
             
     def set_window_handle(self, window_handle: int):
         """Set the window handle for transparency operations"""
@@ -277,6 +281,8 @@ class WindowManager:
         else:
             _user32.ShowWindow(self.hwnd, SW_SHOW)
             print("✨ Window shown via global hotkey.")
+            # Re-apply always-on-top state when showing the window
+            self.set_always_on_top(True)
 
     def _start_hotkey_listener_thread(self):
         """The actual listener thread for global hotkeys."""
