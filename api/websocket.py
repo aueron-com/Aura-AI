@@ -1,7 +1,9 @@
 import asyncio
 import json
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
-from services.llm_service import verify_api_key, get_ai_answer, process_candidate_response, clear_conversation_history
+import json
+from fastapi import APIRouter, WebSocket, WebSocketDisconnect
+from services.llm_service import LLMManager
 from services.stt_service import verify_deepgram_api_key, DeepgramManager
 
 router = APIRouter()
@@ -16,7 +18,7 @@ async def websocket_endpoint(websocket: WebSocket):
     print("🔗 WebSocket connection established")
     
     dg_manager = None
-    onboarding_context = {}
+    llm_manager = None
 
     async def on_transcript(data):
         """Callback function to handle transcripts from Deepgram."""
@@ -35,17 +37,21 @@ async def websocket_endpoint(websocket: WebSocket):
                     interviewer_question = data['transcript']
                     print(f"🎤 INTERVIEWER (FINAL): {interviewer_question}")
                     
-                    # Generate AI answer (not just suggestion)
-                    answer = get_ai_answer(interviewer_question, onboarding_context)
-                    await send_json(websocket, "ai_answer", {"answer": answer})
-                    print(f"🤖 AI ANSWER: {answer}")
+                    if llm_manager:
+                        answer = await llm_manager.get_ai_answer(interviewer_question, onboarding_context)
+                        await send_json(websocket, "ai_answer", {"answer": answer})
+                        print(f"🤖 AI ANSWER: {answer}")
+                    else:
+                        print("⚠️ LLM Manager not initialized, cannot get AI answer.")
                     
                 elif data.get('speaker') == 1 and data.get('transcript'):
                     candidate_response = data['transcript']
                     print(f"👤 CANDIDATE (FINAL): {candidate_response}")
                     
-                    # Process candidate response for conversation context
-                    process_candidate_response(candidate_response)
+                    if llm_manager:
+                        llm_manager.process_candidate_response(candidate_response)
+                    else:
+                        print("⚠️ LLM Manager not initialized, cannot process candidate response.")
             else:
                 # For interim results, just log without generating AI responses
                 speaker_type = "INTERVIEWER" if data.get('speaker') == 0 else "CANDIDATE"
@@ -57,12 +63,11 @@ async def websocket_endpoint(websocket: WebSocket):
             print(f"❌ ERROR: Error in transcript callback: {e}")
 
     try:
-        # 1. Immediately check the keys upon connection
-        print("🔑 Verifying API keys...")
+        # 1. Immediately check the Deepgram key upon connection
+        print("🔑 Verifying Deepgram API key...")
         is_deepgram_valid = verify_deepgram_api_key()
-        is_ai_service_valid = verify_api_key()
         await send_json(websocket, "api_key_status", {"service": "deepgram", "valid": is_deepgram_valid})
-        await send_json(websocket, "api_key_status", {"service": "groq", "valid": is_ai_service_valid}) # Keep "groq" for client-side compatibility
+        # AI provider verification is now done on the frontend before starting
 
         # 2. Listen for messages from the client
         while True:
@@ -71,11 +76,32 @@ async def websocket_endpoint(websocket: WebSocket):
                 data = json.loads(message['text'])
                 if data['type'] == 'start_interview':
                     print("🎬 Starting interview session...")
-                    onboarding_context = data.get('payload', {})
+                    payload = data.get('payload', {})
+                    provider_config = payload.get('aiProvider')
+                    onboarding_context = payload.get('onboardingData', {})
+
+                    if not provider_config:
+                        print("❌ Cannot start interview: AI provider not selected.")
+                        await send_json(websocket, "error", {"message": "AI provider not selected."})
+                        return
+
+                    # Load provider details from JSON config
+                    with open("ai_providers.json", "r") as f:
+                        providers = json.load(f)
                     
-                    # Clear any previous conversation history
-                    clear_conversation_history()
-                    print("🧹 Conversation history cleared for new interview")
+                    selected_provider = next((p for p in providers if p["name"] == provider_config.get("name")), None)
+
+                    if not selected_provider:
+                        print(f"❌ Provider '{provider_config.get('name')}' not found in config.")
+                        return
+                        
+                    # Create a new LLMManager for this session
+                    llm_manager = LLMManager(
+                        provider_name=selected_provider.get("name"),
+                        base_url=selected_provider.get("baseURL"),
+                        api_key=selected_provider.get("apiKey"),
+                        model_name=provider_config.get("model")
+                    )
                     
                     # Log the context we received for debugging
                     print(f"📋 Interview context loaded:")

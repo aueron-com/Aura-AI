@@ -41,6 +41,18 @@
             </fieldset>
 
             <fieldset>
+                <legend>AI Configuration</legend>
+                <div class="ai-config-group">
+                    <select id="ai-provider-select">
+                        <option value="">Select AI Provider</option>
+                    </select>
+                    <select id="ai-model-select" disabled>
+                        <option value="">Select Model</option>
+                    </select>
+                </div>
+            </fieldset>
+
+            <fieldset>
                 <legend>Job Description / Requirements</legend>
                 <textarea id="user-objectives" placeholder="Paste the job description or key requirements here to give the AI context."></textarea>
             </fieldset>
@@ -54,24 +66,11 @@
         <div class="container">
             <h1>Aura Pre-Flight Check</h1>
             <div id="checks">
-                <div class="check-item" id="check-system-audio">
-                    <span class="indicator">⚪</span>
-                    System Audio
-                    <select id="interviewer-audio-source" class="speaker-select">
-                        <option>Select Interview Source</option>
-                        <option>Chrome / Edge Tab</option>
-                        <option>Zoom / Teams App</option>
-                        <option>Entire System Audio</option>
-                    </select>
-                </div>
-                <div class="instruction-text">
-                    When prompted by the browser, please share the tab or application where your interview is taking place.
-                </div>
                 <div class="check-item" id="check-mic-permission"><span class="indicator">⚪</span> Microphone Permission</div>
                 <div class="check-item" id="check-mic-selection"><span class="indicator">⚪</span> Microphone Selection <select id="mic-select" disabled></select></div>
                 <div class="check-item" id="check-backend"><span class="indicator">⚪</span> Backend Connection</div>
                 <div class="check-item" id="check-deepgram"><span class="indicator">⚪</span> Deepgram API</div>
-                <div class="check-item" id="check-groq"><span class="indicator">⚪</span> Groq API</div>
+                <div class="check-item" id="check-ai-provider"><span class="indicator">⚪</span> AI Provider</div>
             </div>
             <button id="start-interview-button" disabled>Start Interview</button>
         </div>

@@ -8,10 +8,6 @@ class Settings(BaseSettings):
     # Required API Keys (no defaults - must be provided)
     DEEPGRAM_API_KEY: str
     
-    # OpenAI-Compatible Settings
-    OPENAI_COMPATIBLE_BASE_URL: str = "https://api.groq.com/openai/v1"
-    OPENAI_COMPATIBLE_API_KEY: str
-    OPENAI_COMPATIBLE_MODEL_NAME: str = "llama3-8b-8192"
     
     # Logging Configuration
     LOG_LEVEL: str = "INFO"
@@ -47,7 +43,7 @@ def print_config_debug():
     print(f"      MAX_CONVERSATION_HISTORY = {settings.MAX_CONVERSATION_HISTORY}")
     print(f"      GENERATE_FULL_ANSWERS = {settings.GENERATE_FULL_ANSWERS}")
     print(f"      PERSONALIZE_ANSWERS = {settings.PERSONALIZE_ANSWERS}")
-    print(f"   🔑 API Keys: DEEPGRAM={'*' * 20}, OPENAI_COMPATIBLE={'*' * 20}")
+    print(f"   🔑 API Keys: DEEPGRAM={'*' * 20}")
     
     # Verify .env file is being read
     try:

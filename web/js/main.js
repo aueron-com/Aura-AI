@@ -11,13 +11,15 @@ import { loadConfig, isDev, devLog, devWarn, devError } from './config.js';
 import liveInterviewUI from './live-interview.js';
 import hotkeyManager from './hotkeys.js';
 
-// --- Config (now loaded from backend) ---
-// DEV_MODE is now centralized and loaded from .env via backend API
-
 // --- State Management ---
 const appState = {
     onboardingData: {},
     socket: null,
+    aiProviders: [],
+    selectedProvider: {
+        name: null,
+        model: null,
+    }
 };
 
 // --- DOM Elements ---
@@ -34,22 +36,21 @@ const onboardingForm = {
     resume: document.getElementById('user-resume'),
     focusCheckboxes: document.querySelectorAll('input[name="focus"]'),
     objectives: document.getElementById('user-objectives'),
+    providerSelect: document.getElementById('ai-provider-select'),
+    modelSelect: document.getElementById('ai-model-select'),
 };
 
 const checks = {
-    // System audio check is now implicit in starting the interview
     micPermission: document.getElementById('check-mic-permission'),
     micSelection: document.getElementById('check-mic-selection'),
     backend: document.getElementById('check-backend'),
     deepgram: document.getElementById('check-deepgram'),
-    groq: document.getElementById('check-groq'),
+    aiProvider: document.getElementById('check-ai-provider'),
 };
 
 const micSelect = document.getElementById('mic-select');
 const proceedButton = document.getElementById('proceed-to-checks');
 const startButton = document.getElementById('start-interview-button');
-// The old visualizer divs are no longer needed with this more direct approach.
-// We'll build the proper UI in Phase 2c.
 
 
 // --- View Management ---
@@ -84,15 +85,16 @@ function handleOnboarding() {
         focus: focus,
         objectives: onboardingForm.objectives.value,
     };
-    devLog("Onboarding data captured:", appState.onboardingData);
+    
+    appState.selectedProvider.name = onboardingForm.providerSelect.value;
+    appState.selectedProvider.model = onboardingForm.modelSelect.value;
+
+    devLog("Onboarding data captured:", appState);
     switchView('preflight');
     runPreFlightChecks();
 }
 
 async function runPreFlightChecks() {
-    // System audio check is removed from pre-flight to avoid double permission prompt.
-    // It will be requested along with the microphone when the interview starts.
-    
     // 1. Microphone Check
     updateCheckStatus(checks.micPermission, 'pending', 'Requesting Microphone...');
     const micPermission = await setupMicrophone();
@@ -105,8 +107,32 @@ async function runPreFlightChecks() {
         return;
     }
     
-    // 2. Backend Connection and API Key Checks
+    // 2. Backend Connection
     connectWebSocket();
+    
+    // 3. AI Provider Check
+    verifyAiProvider();
+}
+
+async function verifyAiProvider() {
+    const { name, model } = appState.selectedProvider;
+    updateCheckStatus(checks.aiProvider, 'pending', `Checking ${name}...`);
+    try {
+        const response = await fetch('/api/verify-provider', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ name, model }),
+        });
+        const result = await response.json();
+        if (result.success) {
+            updateCheckStatus(checks.aiProvider, 'success', `${name} (${model}) OK`);
+        } else {
+            updateCheckStatus(checks.aiProvider, 'error', `${name} Connection Failed`);
+        }
+    } catch (error) {
+        updateCheckStatus(checks.aiProvider, 'error', 'AI Provider Check Failed');
+    }
+    checkAllSystemsGo();
 }
 
 function sendSocketMessage(type, payload) {
@@ -130,7 +156,6 @@ function connectWebSocket() {
         console.log("[open] Connection established");
         updateCheckStatus(checks.backend, 'success', 'Backend Connected');
         updateCheckStatus(checks.deepgram, 'pending', 'Checking Deepgram API...');
-        updateCheckStatus(checks.groq, 'pending', 'Checking Groq API...');
     };
 
     socket.onclose = function(event) {
@@ -143,12 +168,11 @@ function connectWebSocket() {
 
     socket.onmessage = function(event) {
         const data = JSON.parse(event.data);
-        // We will add logging here for the transcript and suggestion messages
         devLog("Received from backend:", data);
 
         if (data.type === 'api_key_status') {
             const { service, valid } = data.payload;
-            const checkElement = service === 'deepgram' ? checks.deepgram : checks.groq;
+            const checkElement = service === 'deepgram' ? checks.deepgram : checks.aiProvider;
             const serviceName = service.charAt(0).toUpperCase() + service.slice(1);
 
             if (valid) {
@@ -158,9 +182,6 @@ function connectWebSocket() {
             }
             checkAllSystemsGo();
         } else if (data.type === 'transcript_update') {
-            devLog('📝 TRANSCRIPT:', data.payload);
-            
-            // Send to live interview UI
             if (window.liveInterviewUI) {
                 if (data.payload.is_final) {
                     liveInterviewUI.addInterviewerQuestion(data.payload.transcript, false);
@@ -170,23 +191,15 @@ function connectWebSocket() {
                 }
             }
         } else if (data.type === 'ai_answer') {
-            devLog('🤖 AI ANSWER:', data.payload.answer);
-            
-            // Send to live interview UI
             if (window.liveInterviewUI) {
                 liveInterviewUI.addAIResponse(data.payload.answer);
             }
-        } else if (data.type === 'suggestion_update') {
-            // Legacy support for old suggestion format
-            devLog('🤖 SUGGESTION:', data.payload.suggestion);
         }
     };
 }
 
 function checkAllSystemsGo() {
-    // Filter out the systemAudio check as it's no longer part of pre-flight
-    const relevantChecks = Object.values(checks).filter(el => el.id !== 'check-system-audio');
-    const allGreen = relevantChecks.every(
+    const allGreen = Object.values(checks).every(
         check => check.querySelector('.indicator').textContent === '🟢'
     );
     if (allGreen) {
@@ -196,32 +209,12 @@ function checkAllSystemsGo() {
 }
 
 async function startInterview() {
-    // Enable interview mode transparency
-    try {
-        const response = await fetch('/api/interview/start', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' }
-        });
-        const result = await response.json();
-        if (result.success) {
-            console.log('🌙 Interview transparency enabled');
-        }
-    } catch (error) {
-        console.error('❌ Failed to enable interview transparency:', error);
-    }
-    
     switchView('live');
-    
-    // Initialize the live interview UI
-    liveInterviewUI.init();
-    liveInterviewUI.initialize();
-    
-    // Enable hotkeys for live interview
+    liveInterviewUI.init(); // CRITICAL FIX: Initialize DOM elements first
+    // liveInterviewUI.initialize(); // Moved to DOMContentLoaded
     hotkeyManager.setEnabled(true);
     
-    // Define the callback that sends audio data over the socket
     const onAudioData = (audioData, speakerHint) => {
-        // Send raw audio data - backend will use improved speaker detection
         sendAudioChunk(audioData);
     };
 
@@ -233,31 +226,17 @@ async function startInterview() {
         return;
     }
     
-    sendSocketMessage('start_interview', appState.onboardingData);
+    sendSocketMessage('start_interview', {
+        aiProvider: appState.selectedProvider,
+        onboardingData: appState.onboardingData,
+    });
 }
 
 async function endInterview() {
     stopAudioProcessing();
     sendSocketMessage('end_interview', {});
-    
-    // Disable transparency when leaving interview
-    try {
-        const response = await fetch('/api/interview/end', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' }
-        });
-        const result = await response.json();
-        if (result.success) {
-            console.log('🎨 Interview transparency disabled - window is now opaque');
-        }
-    } catch (error) {
-        console.error('❌ Failed to disable interview transparency:', error);
-    }
-    
-    // Disable hotkeys when leaving live interview
     hotkeyManager.setEnabled(false);
     
-    // Clear the live interview UI
     if (window.liveInterviewUI) {
         liveInterviewUI.clearConversation();
     }
@@ -265,54 +244,67 @@ async function endInterview() {
     switchView('onboarding');
 }
 
-// Make functions globally accessible for the live UI
+async function loadAiProviders() {
+    try {
+        const response = await fetch('/api/ai-providers');
+        appState.aiProviders = await response.json();
+        
+        const providerSelect = onboardingForm.providerSelect;
+        providerSelect.innerHTML = '<option value="">Select AI Provider</option>';
+        appState.aiProviders.forEach(p => {
+            const option = document.createElement('option');
+            option.value = p.name;
+            option.textContent = p.name;
+            providerSelect.appendChild(option);
+        });
+    } catch (error) {
+        console.error("Failed to load AI providers:", error);
+    }
+}
+
+function updateModelDropdown() {
+    const providerName = onboardingForm.providerSelect.value;
+    const provider = appState.aiProviders.find(p => p.name === providerName);
+    const modelSelect = onboardingForm.modelSelect;
+
+    modelSelect.innerHTML = '<option value="">Select Model</option>';
+    modelSelect.disabled = true;
+
+    if (provider && provider.models) {
+        provider.models.forEach(model => {
+            const option = document.createElement('option');
+            option.value = model;
+            option.textContent = model;
+            modelSelect.appendChild(option);
+        });
+        modelSelect.disabled = false;
+    }
+}
+
+
+// --- Event Listeners ---
+proceedButton.addEventListener('click', handleOnboarding);
+startButton.addEventListener('click', startInterview);
+onboardingForm.providerSelect.addEventListener('change', updateModelDropdown);
+
+window.addEventListener('DOMContentLoaded', async () => {
+    await loadConfig();
+    await loadAiProviders();
+    liveInterviewUI.init(); // Initialize the UI elements as soon as the DOM is ready
+    setupDeveloperShortcuts();
+    hotkeyManager.setEnabled(false);
+    switchView('onboarding');
+});
+
+// Make functions globally accessible
 window.endInterview = endInterview;
 window.toggleMicrophoneMute = toggleMicrophoneMute;
 window.setMicrophoneMute = setMicrophoneMute;
 window.isMicrophoneMuted = isMicrophoneMuted;
 
-// --- Event Listeners ---
-proceedButton.addEventListener('click', handleOnboarding);
-startButton.addEventListener('click', startInterview);
-
-window.addEventListener('DOMContentLoaded', async () => {
-    // Load configuration from backend first
-    await loadConfig();
-    
-    // Setup developer features if in dev mode
-    setupDeveloperShortcuts();
-    
-    // Initialize hotkeys (disabled by default, enabled during live interview)
-    hotkeyManager.setEnabled(false);
-    
-    // Ensure window starts opaque for onboarding/preflight
-    try {
-        const response = await fetch('/api/interview/end', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' }
-        });
-        const result = await response.json();
-        if (result.success) {
-            console.log('🎨 Window initialized as opaque for onboarding');
-        }
-    } catch (error) {
-        console.log('ℹ️ Window opacity initialization (this is normal on first load)');
-    }
-    
-    // Clean up unused elements from old UI
-    const micVolume = document.getElementById('mic-volume');
-    const systemVolume = document.getElementById('system-volume');
-    if (micVolume) micVolume.parentElement.parentElement.remove();
-    
-    const systemAudioCheck = document.getElementById('check-system-audio');
-    if(systemAudioCheck) systemAudioCheck.remove();
-
-    switchView('onboarding');
-});
-
-// --- Developer Shortcuts (controlled by centralized DEV_MODE) ---
+// --- Developer Shortcuts ---
 function setupDeveloperShortcuts() {
-    
+    if (isDev()) {
         devLog('🛠️ Developer shortcuts enabled');
         window.addEventListener('keydown', (e) => {
             if (e.ctrlKey && e.key === 'j') {
@@ -321,5 +313,5 @@ function setupDeveloperShortcuts() {
                 autofillForTesting(onboardingForm);
             }
         });
-    
+    }
 }

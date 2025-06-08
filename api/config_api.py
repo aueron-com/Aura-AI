@@ -1,7 +1,9 @@
+import json
 from fastapi import APIRouter, HTTPException
-from core.config import settings
 from pydantic import BaseModel
+from core.config import settings
 import window_manager
+from services.llm_service import verify_provider_connection
 
 router = APIRouter()
 
@@ -10,6 +12,10 @@ class TransparencyRequest(BaseModel):
 
 class TransparencyPercentRequest(BaseModel):
     percent: int  # 0 to 100
+
+class ProviderVerifyRequest(BaseModel):
+    name: str
+    model: str
 
 @router.get("/api/config")
 async def get_config():
@@ -22,6 +28,54 @@ async def get_config():
         "LOG_LEVEL": settings.LOG_LEVEL,
         "CAPTURE_PROTECTION_ENABLED": not settings.DEV_MODE
     }
+
+@router.get("/api/ai-providers")
+async def get_ai_providers():
+    """
+    Reads the ai_providers.json file and returns a list of providers
+    to the frontend, excluding sensitive API keys.
+    """
+    try:
+        with open("ai_providers.json", "r") as f:
+            providers = json.load(f)
+        
+        # Sanitize the data before sending to the client
+        client_safe_providers = [
+            {
+                "name": p.get("name"),
+                "models": p.get("models", [])
+            }
+            for p in providers
+        ]
+        return client_safe_providers
+    except FileNotFoundError:
+        raise HTTPException(status_code=404, detail="ai_providers.json not found")
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error reading provider config: {e}")
+
+@router.post("/api/verify-provider")
+async def verify_ai_provider(request: ProviderVerifyRequest):
+    """
+    Verifies a connection to the selected AI provider.
+    """
+    try:
+        with open("ai_providers.json", "r") as f:
+            providers = json.load(f)
+        
+        provider_config = next((p for p in providers if p["name"] == request.name), None)
+
+        if not provider_config:
+            raise HTTPException(status_code=404, detail=f"Provider '{request.name}' not found.")
+
+        is_valid = await verify_provider_connection(
+            base_url=provider_config.get("baseURL"),
+            api_key=provider_config.get("apiKey"),
+            model_name=request.model
+        )
+        return {"success": is_valid}
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to verify provider: {e}")
 
 @router.get("/api/transparency")
 async def get_transparency():
