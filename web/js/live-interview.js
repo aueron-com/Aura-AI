@@ -17,13 +17,19 @@ class LiveInterviewUI {
         
         // Enhanced smart scroll management
         this.scrollState = {
-            mode: 'live_bottom',           // 'live_bottom', 'ai_start', 'user_override'
-            userOverrideActive: false,     // Is user currently overriding scroll?
-            userOverrideTimeout: null,     // Timeout to reset user override
+            mode: 'live_bottom',           // 'live_bottom', 'ai_start', 'user_reading'
+            userReadingMode: false,        // User has intentionally scrolled up to read
+            lastUserScrollTime: 0,         // When user last scrolled
+            lastUserScrollDirection: 'down', // 'up' or 'down'
+            consecutiveUpScrolls: 0,       // Count of consecutive up scrolls (indicates intent)
             aiResponseStartElement: null,  // Reference to current AI response element
             isLiveSpeaking: false,         // Whether someone is currently speaking
             lastScrollPosition: 0,         // Track scroll position changes
             isNearBottom: true,            // Is the scroll position near the bottom?
+            bottomThreshold: 100,          // Pixels from bottom to consider "near bottom"
+            readingThreshold: 200,         // Pixels scrolled up to consider "reading mode"
+            newContentPending: false,      // New content arrived while user is reading
+            resumeScrollButton: null,      // Reference to resume button
         };
         
         // Initialize modules
@@ -62,6 +68,10 @@ class LiveInterviewUI {
         
         // Setup smart scroll detection
         this.setupSmartScroll();
+        
+        // Setup keyboard shortcuts for scroll control
+        this.setupScrollKeyboardShortcuts();
+        
         this.eventsInitialized = true;
     }
 
@@ -69,51 +79,229 @@ class LiveInterviewUI {
         if (!this.conversationStream) return;
 
         this.conversationStream.addEventListener('scroll', () => {
-            const { scrollTop, scrollHeight, clientHeight } = this.conversationStream;
-            this.scrollState.lastScrollPosition = scrollTop;
-            this.scrollState.isNearBottom = scrollTop >= scrollHeight - clientHeight - 50; // 50px tolerance
-
-            // If user scrolls up, activate override
-            if (!this.scrollState.isNearBottom) {
-                this.activateUserScrollOverride();
-            } else {
-                // If user scrolls back to bottom, deactivate override
-                this.deactivateUserScrollOverride();
-            }
+            this.handleScrollEvent();
         });
 
-        // Also activate on wheel event for responsiveness
+        // Track user scroll intent via wheel events
         this.conversationStream.addEventListener('wheel', (e) => {
-            if (e.deltaY < 0) { // Scrolling up
-                this.activateUserScrollOverride();
-            }
-        });
+            this.handleWheelEvent(e);
+        }, { passive: true });
+
+        // Create resume scroll button (initially hidden)
+        this.createResumeScrollButton();
     }
 
-    activateUserScrollOverride() {
-        if (!this.scrollState.userOverrideActive) {
-            this.scrollState.userOverrideActive = true;
-            this.scrollState.mode = 'user_override';
-            console.log('🖱️ User scroll override activated.');
+    handleScrollEvent() {
+        const { scrollTop, scrollHeight, clientHeight } = this.conversationStream;
+        const currentPosition = scrollTop;
+        const maxScrollTop = scrollHeight - clientHeight;
+        
+        // Determine scroll direction
+        const direction = currentPosition > this.scrollState.lastScrollPosition ? 'down' : 'up';
+        
+        // Update state
+        this.scrollState.lastScrollPosition = currentPosition;
+        this.scrollState.lastUserScrollTime = Date.now();
+        this.scrollState.isNearBottom = currentPosition >= maxScrollTop - this.scrollState.bottomThreshold;
+        
+        // Track scroll direction changes
+        if (direction !== this.scrollState.lastUserScrollDirection) {
+            this.scrollState.consecutiveUpScrolls = direction === 'up' ? 1 : 0;
+        } else if (direction === 'up') {
+            this.scrollState.consecutiveUpScrolls++;
         }
+        
+        this.scrollState.lastUserScrollDirection = direction;
+        
+        // Determine if user is intentionally reading (scrolled up significantly)
+        const distanceFromBottom = maxScrollTop - currentPosition;
+        const wasInReadingMode = this.scrollState.userReadingMode;
+        
+        if (distanceFromBottom > this.scrollState.readingThreshold && this.scrollState.consecutiveUpScrolls >= 2) {
+            // User has scrolled up intentionally (multiple up scrolls + significant distance)
+            this.enterReadingMode();
+        } else if (this.scrollState.isNearBottom && this.scrollState.userReadingMode) {
+            // User has returned to bottom - exit reading mode
+            this.exitReadingMode();
+        }
+        
+        devLog(`📜 Scroll: pos=${currentPosition}, dir=${direction}, nearBottom=${this.scrollState.isNearBottom}, reading=${this.scrollState.userReadingMode}`);
+    }
 
-        // Reset the timeout each time the user scrolls
-        clearTimeout(this.scrollState.userOverrideTimeout);
-        this.scrollState.userOverrideTimeout = setTimeout(() => {
-            this.scrollState.userOverrideActive = false;
-            // Revert to a sensible default mode after timeout
-            this.setScrollMode('live_bottom');
-            console.log('🔄 User scroll override expired. Auto-scroll re-enabled.');
-        }, 7000); // 3-second timeout
+    handleWheelEvent(e) {
+        // Additional intent detection: rapid up scrolls indicate reading intent
+        if (e.deltaY < 0) { // Scrolling up
+            this.scrollState.consecutiveUpScrolls++;
+        } else {
+            this.scrollState.consecutiveUpScrolls = 0;
+        }
+    }
+
+    enterReadingMode() {
+        if (!this.scrollState.userReadingMode) {
+            this.scrollState.userReadingMode = true;
+            this.scrollState.mode = 'user_reading';
+            console.log('📚 User reading mode activated - auto-scroll paused');
+            this.showResumeScrollButton();
+        }
     }
     
-    deactivateUserScrollOverride() {
-        if (this.scrollState.userOverrideActive) {
-            clearTimeout(this.scrollState.userOverrideTimeout);
-            this.scrollState.userOverrideActive = false;
+    exitReadingMode() {
+        if (this.scrollState.userReadingMode) {
+            this.scrollState.userReadingMode = false;
+            this.scrollState.newContentPending = false;
             this.setScrollMode('live_bottom');
-            console.log('👍 User scrolled to bottom. Auto-scroll re-enabled.');
+            this.hideResumeScrollButton();
+            console.log('📜 User returned to bottom - auto-scroll resumed');
         }
+    }
+
+    createResumeScrollButton() {
+        // Inject CSS for the button if not already present
+        if (!document.getElementById('resume-scroll-styles')) {
+            const style = document.createElement('style');
+            style.id = 'resume-scroll-styles';
+            style.textContent = `
+                .resume-scroll-btn {
+                    position: fixed;
+                    bottom: 30px;
+                    right: 20px;
+                    z-index: 1000;
+                    background: rgba(255, 255, 255, 0.8);
+                    color: rgb(0, 0, 0);;
+                    border: none;
+                    border-radius: 50%;
+                    width: 32px;
+                    height: 32px;
+                    font-size: 14px;
+                    font-weight:700;
+                    cursor: pointer;
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+                    backdrop-filter: blur(10px);
+                    transition: all 0.2s ease;
+                    transform: translateY(0);
+                    opacity: 0.4;
+                    line-height: 1;
+                }
+                
+                .resume-scroll-btn.hidden {
+                    transform: translateY(50px) scale(0.8);
+                    opacity: 0;
+                    pointer-events: none;
+                }
+                
+                .resume-scroll-btn:hover {
+                    background: rgba(40, 40, 40, 0.8);
+                    color: #fff;
+                    opacity: 0.9;
+                    transform: scale(1.1);
+                }
+                
+                .resume-scroll-btn.has-new-content {
+                    background: rgba(34, 139, 34, 0.7);
+                    color: #fff;
+                    opacity: 0.8;
+                    animation: subtlePulse 3s infinite;
+                }
+                
+                .resume-scroll-btn.has-new-content:hover {
+                    background: rgba(34, 139, 34, 0.9);
+                    opacity: 1;
+                }
+                
+                @keyframes subtlePulse {
+                    0%, 100% { 
+                        opacity: 0.6;
+                        transform: scale(1);
+                    }
+                    50% { 
+                        opacity: 0.9;
+                        transform: scale(1.05);
+                    }
+                }
+            `;
+            document.head.appendChild(style);
+        }
+
+        // Create a floating button that appears when user is in reading mode
+        const button = document.createElement('button');
+        button.className = 'resume-scroll-btn hidden';
+        button.innerHTML = '↓';
+        button.title = 'Resume auto-scroll (End key)';
+        
+        button.addEventListener('click', () => {
+            this.resumeAutoScroll();
+        });
+        
+        // Add to body (fixed positioning)
+        document.body.appendChild(button);
+        this.scrollState.resumeScrollButton = button;
+    }
+
+    showResumeScrollButton() {
+        if (this.scrollState.resumeScrollButton) {
+            this.scrollState.resumeScrollButton.classList.remove('hidden');
+            
+            // Update button based on whether new content is pending
+            if (this.scrollState.newContentPending) {
+                this.scrollState.resumeScrollButton.innerHTML = '•';
+                this.scrollState.resumeScrollButton.title = 'New content available - Resume auto-scroll (End key)';
+                this.scrollState.resumeScrollButton.classList.add('has-new-content');
+            }
+        }
+    }
+
+    hideResumeScrollButton() {
+        if (this.scrollState.resumeScrollButton) {
+            this.scrollState.resumeScrollButton.classList.add('hidden');
+            this.scrollState.resumeScrollButton.classList.remove('has-new-content');
+            this.scrollState.resumeScrollButton.innerHTML = '↓';
+            this.scrollState.resumeScrollButton.title = 'Resume auto-scroll (End key)';
+        }
+    }
+
+    resumeAutoScroll() {
+        // Manually resume auto-scroll and go to bottom
+        this.exitReadingMode();
+        this.scrollToBottom();
+        console.log('🎯 User manually resumed auto-scroll');
+    }
+
+    setupScrollKeyboardShortcuts() {
+        // Add keyboard shortcuts for scroll control
+        document.addEventListener('keydown', (e) => {
+            // Only handle shortcuts when not typing in an input
+            if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') {
+                return;
+            }
+
+            // Ctrl+End or End: Resume auto-scroll / go to bottom
+            if (e.key === 'End') {
+                e.preventDefault();
+                this.resumeAutoScroll();
+            }
+            
+            // Ctrl+Home or Home: Enter reading mode and go to top
+            else if (e.key === 'Home') {
+                e.preventDefault();
+                this.enterReadingMode();
+                if (this.conversationStream) {
+                    this.conversationStream.scrollTop = 0;
+                }
+            }
+            
+            // Escape: Toggle reading mode
+            else if (e.key === 'Escape' && !e.ctrlKey && !e.altKey) {
+                e.preventDefault();
+                if (this.scrollState.userReadingMode) {
+                    this.resumeAutoScroll();
+                } else {
+                    this.enterReadingMode();
+                }
+            }
+        });
     }
 
     // Show activity indicator
@@ -145,7 +333,10 @@ class LiveInterviewUI {
 
     // Add interviewer question
     addInterviewerQuestion(question, isInterim = false) {
-        this.setScrollMode('live_bottom'); // Always scroll to bottom for live speech
+        // Live speech is high priority - but respect reading mode
+        if (!this.scrollState.userReadingMode) {
+            this.setScrollMode('live_bottom');
+        }
         this.scrollState.isLiveSpeaking = true;
 
         if (isInterim) {
@@ -165,7 +356,15 @@ class LiveInterviewUI {
             this.updateEmptyState();
             this.scrollState.isLiveSpeaking = false;
         }
-        this.scrollToBottom(); // Continuous scroll during speech
+        
+        // For live speech, be more aggressive about scrolling (but still respect reading mode)
+        if (!this.scrollState.userReadingMode) {
+            this.scrollToBottom();
+        } else {
+            // Notify user of new content if they're reading
+            this.scrollState.newContentPending = true;
+            this.showResumeScrollButton();
+        }
     }
 
     // Add AI response
@@ -288,15 +487,21 @@ class LiveInterviewUI {
                     this.scrollToAiResponseStart();
                 }
                 break;
-            case 'user_override':
+            case 'user_reading':
                 // In this mode, we don't trigger any automatic scrolling
+                // but we mark that new content is pending
+                this.scrollState.newContentPending = true;
+                this.showResumeScrollButton();
                 break;
         }
     }
 
     scrollToBottom() {
-        if (this.scrollState.userOverrideActive) {
-            // console.log('📜 Scroll to bottom blocked by user override.');
+        if (this.scrollState.userReadingMode) {
+            // Don't interrupt user reading - just mark that new content is available
+            this.scrollState.newContentPending = true;
+            this.showResumeScrollButton();
+            devLog('📜 Scroll to bottom deferred - user is reading');
             return;
         }
         if (this.conversationStream) {
@@ -305,8 +510,11 @@ class LiveInterviewUI {
     }
 
     scrollToAiResponseStart() {
-        if (this.scrollState.userOverrideActive) {
-            // console.log('📜 Scroll to AI response start blocked by user override.');
+        if (this.scrollState.userReadingMode) {
+            // Don't interrupt user reading - just mark that new content is available
+            this.scrollState.newContentPending = true;
+            this.showResumeScrollButton();
+            devLog('📜 Scroll to AI response start deferred - user is reading');
             return;
         }
         if (this.scrollState.aiResponseStartElement) {
@@ -389,12 +597,18 @@ class LiveInterviewUI {
         // Reset scroll state
         this.scrollState = {
             mode: 'live_bottom',
-            userOverrideActive: false,
-            userOverrideTimeout: null,
+            userReadingMode: false,
+            lastUserScrollTime: 0,
+            lastUserScrollDirection: 'down',
+            consecutiveUpScrolls: 0,
             aiResponseStartElement: null,
             isLiveSpeaking: false,
             lastScrollPosition: 0,
             isNearBottom: true,
+            bottomThreshold: 100,
+            readingThreshold: 200,
+            newContentPending: false,
+            resumeScrollButton: this.scrollState?.resumeScrollButton || null, // Preserve button reference
         };
         
         console.log('🎬 Live interview UI initialized');
@@ -473,6 +687,34 @@ window.getScrollState = () => {
         return window.liveInterviewUI.scrollState;
     }
     return null;
+};
+
+// Enhanced scroll control functions
+window.enterReadingMode = () => {
+    if (window.liveInterviewUI) {
+        window.liveInterviewUI.enterReadingMode();
+        console.log('📚 Manually entered reading mode');
+    }
+};
+
+window.exitReadingMode = () => {
+    if (window.liveInterviewUI) {
+        window.liveInterviewUI.exitReadingMode();
+        console.log('📜 Manually exited reading mode');
+    }
+};
+
+window.resumeAutoScroll = () => {
+    if (window.liveInterviewUI) {
+        window.liveInterviewUI.resumeAutoScroll();
+    }
+};
+
+window.isInReadingMode = () => {
+    if (window.liveInterviewUI) {
+        return window.liveInterviewUI.scrollState.userReadingMode;
+    }
+    return false;
 };
 
 // Quick presets
