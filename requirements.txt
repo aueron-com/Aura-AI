@@ -8,3 +8,4 @@ deepgram-sdk
 requests
 deepgram-sdk==3.*
 pynput
+python-dotenv
