@@ -51,12 +51,14 @@ class WindowManager:
         self.hwnd: Optional[int] = None
         self.is_windows = platform.system() == "Windows"
         self.current_transparency = 1.0 # 1.0 = opaque, 0.0 = transparent
+        self.is_ghost_mode = False
         
         # Windows API constants
         if self.is_windows:
             self.GWL_EXSTYLE = -20
             self.WS_EX_LAYERED = 0x80000
             self.WS_EX_TOPMOST = 0x8
+            self.WS_EX_TRANSPARENT = 0x20
             self.LWA_ALPHA = 0x2
             self.HWND_TOPMOST = -1
             self.HWND_NOTOPMOST = -2
@@ -269,6 +271,33 @@ class WindowManager:
             "window_handle": self.hwnd
         }
 
+    def set_ghost_mode(self, enabled: bool):
+        """Enable or disable 'click-through' (ghost) mode."""
+        if not self.is_windows or not self.hwnd:
+            return
+
+        try:
+            current_style = self.GetWindowLongW(self.hwnd, self.GWL_EXSTYLE)
+            if enabled:
+                new_style = current_style | self.WS_EX_TRANSPARENT
+                print("👻 Ghost Mode Enabled (click-through)")
+            else:
+                new_style = current_style & ~self.WS_EX_TRANSPARENT
+                print("🖱️ Ghost Mode Disabled (normal interaction)")
+
+            self.SetWindowLongW(self.hwnd, self.GWL_EXSTYLE, new_style)
+            self.is_ghost_mode = enabled
+            
+            # Force re-apply always-on-top after style change
+            self.set_always_on_top(True)
+            
+        except Exception as e:
+            print(f"❌ Error setting ghost mode: {e}")
+
+    def toggle_ghost_mode(self):
+        """Toggles the ghost mode on or off."""
+        self.set_ghost_mode(not self.is_ghost_mode)
+
     def toggle_visibility(self):
         """Toggle the window's visibility."""
         if not self.is_windows or not self.hwnd:
@@ -288,17 +317,18 @@ class WindowManager:
         """The actual listener thread for global hotkeys."""
         print("🎧 Starting global hotkey listener thread...")
 
-        def on_activate():
-            print("Hotkey <alt>+z activated!")
+        def on_hide_show():
             self.toggle_visibility()
 
-        # Define the hotkey and its callback
-        hotkeys = {
-            '<alt>+z': on_activate,
-        }
+        def on_toggle_ghost():
+            self.toggle_ghost_mode()
 
-        # Start listening
-        with keyboard.GlobalHotKeys(hotkeys) as h:
+        hotkey_map = {
+            '<alt>+x': on_toggle_ghost,
+            '<alt>+z': on_hide_show,
+        }
+        
+        with keyboard.GlobalHotKeys(hotkey_map) as h:
             h.join()
 
     def start_hotkey_listener(self):
