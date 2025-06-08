@@ -28,9 +28,9 @@ export class LiveStreaming {
     }
 
     // Stream content with typing effect and markdown support
-    async streamContent(container, content, speed = null) {
+    async streamContent(container, content, speed = null, onProgress = null) {
         const actualSpeed = speed || this.config.streamingSpeed;
-        
+
         if (!this.config.enableStreaming) {
             // If streaming is disabled, show content immediately
             if (this.config.enableMarkdown) {
@@ -39,21 +39,22 @@ export class LiveStreaming {
                 this.displayInstantText(container, content);
             }
             container.parentElement.classList.add('complete');
+            if (onProgress) onProgress(); // Final callback
             return;
         }
 
         // Process with markdown if enabled
         if (this.config.enableMarkdown) {
-            await this.streamMarkdownContent(container, content, actualSpeed);
+            await this.streamMarkdownContent(container, content, actualSpeed, onProgress);
         } else {
             // Fallback to original logic
             if (content.includes('```')) {
-                await this.streamComplexContent(container, content, actualSpeed);
+                await this.streamComplexContent(container, content, actualSpeed, onProgress);
             } else {
-                await this.streamSimpleText(container, content, actualSpeed);
+                await this.streamSimpleText(container, content, actualSpeed, onProgress);
             }
         }
-        
+
         container.parentElement.classList.add('complete');
     }
 
@@ -204,63 +205,54 @@ export class LiveStreaming {
     // NEW: Stream markdown content with proper formatting
     async streamMarkdownContent(container, content, speed, onProgress = null) {
         try {
-            // Parse content into structured blocks
             const blocks = this.markdownProcessor.parseContent(content);
             
             for (let i = 0; i < blocks.length; i++) {
                 const block = blocks[i];
-                
+
                 if (block.type === 'code') {
-                    // Use existing code block system
                     this.addCodeBlock(container, block.content, block.language);
-                    await this.delay(50); // Much faster for code blocks
+                    await this.delay(50);
                 } else if (block.type === 'header') {
-                    await this.streamHeaderBlock(container, block);
+                    await this.streamHeaderBlock(container, block, onProgress);
                 } else if (block.type === 'list') {
-                    await this.streamListBlock(container, block, speed);
+                    await this.streamListBlock(container, block, speed, onProgress);
                 } else if (block.type === 'paragraph') {
-                    await this.streamParagraphBlock(container, block, speed);
+                    await this.streamParagraphBlock(container, block, speed, onProgress);
                 }
                 
-                // Progress callback
                 if (onProgress) onProgress();
-                
-                // Reduced delay between blocks for better flow
+
                 if (i < blocks.length - 1) {
                     await this.delay(40);
                 }
             }
         } catch (error) {
             console.error('Markdown processing error:', error);
-            // Fallback to simple text streaming
             await this.streamSimpleText(container, content, speed, onProgress);
         }
     }
 
     // Stream a header block
-    async streamHeaderBlock(container, block) {
+    async streamHeaderBlock(container, block, onProgress) {
         const headerElement = document.createElement(`h${block.level}`);
         headerElement.className = `markdown-header markdown-h${block.level}`;
         headerElement.id = block.id;
         
-        // Add empty header immediately so it's visible
         container.appendChild(headerElement);
         
-        // Small delay to let CSS animation start, then stream content
         await this.delay(20);
-        await this.streamTextIntoElement(headerElement, block.content, this.config.aiStreamingSpeed);
+        await this.streamTextIntoElement(headerElement, block.content, this.config.aiStreamingSpeed, onProgress);
     }
 
     // Stream a list block
-    async streamListBlock(container, block, speed) {
+    async streamListBlock(container, block, speed, onProgress) {
         const listTag = block.listType === 'numbered' ? 'ol' : 'ul';
         const listElement = document.createElement(listTag);
         listElement.className = `markdown-list markdown-${block.listType}-list`;
         
-        // Add empty list immediately so it's visible
         container.appendChild(listElement);
         
-        // Create all list items first, then stream content into them
         const listItems = [];
         for (let i = 0; i < block.items.length; i++) {
             const item = block.items[i];
@@ -276,14 +268,11 @@ export class LiveStreaming {
             listItems.push({ element: listItem, content: item.content });
         }
         
-        // Small delay to let CSS animation start
         await this.delay(20);
         
-        // Now stream content into each list item
         for (let i = 0; i < listItems.length; i++) {
-            await this.streamTextIntoElement(listItems[i].element, listItems[i].content, speed);
+            await this.streamTextIntoElement(listItems[i].element, listItems[i].content, speed, onProgress);
             
-            // Smaller delay between items for better flow
             if (i < listItems.length - 1) {
                 await this.delay(20);
             }
@@ -291,80 +280,76 @@ export class LiveStreaming {
     }
 
     // Stream a paragraph block
-    async streamParagraphBlock(container, block, speed) {
+    async streamParagraphBlock(container, block, speed, onProgress) {
         if (!block.content || !block.content.trim()) {
-            return; // Skip empty paragraphs
+            return;
         }
         
         const paragraphElement = document.createElement('p');
         paragraphElement.className = 'markdown-paragraph';
         paragraphElement.id = block.id;
         
-        // Add empty paragraph immediately so it's visible
         container.appendChild(paragraphElement);
         
-        // Small delay to let CSS animation start, then stream content
         await this.delay(20);
-        await this.streamTextIntoElement(paragraphElement, block.content, speed);
+        await this.streamTextIntoElement(paragraphElement, block.content, speed, onProgress);
     }
 
     // Stream text into a specific element with HTML support
-    async streamTextIntoElement(element, htmlContent, speed) {
-        // Parse HTML content and stream it properly
+    async streamTextIntoElement(element, htmlContent, speed, onProgress) {
         const tempDiv = document.createElement('div');
         tempDiv.innerHTML = htmlContent;
         
-        // If there are HTML elements, we need to handle them specially
-        if (tempDiv.children.length > 0) {
-            // Process mixed HTML and text content
-            await this.streamMixedContent(element, tempDiv, speed);
+        if (tempDiv.children.length > 0 && tempDiv.textContent !== htmlContent) {
+            await this.streamMixedContent(element, tempDiv, speed, onProgress);
         } else {
-            // Simple text content - stream word by word
             const text = tempDiv.textContent || htmlContent;
-            await this.streamSimpleTextIntoElement(element, text, speed);
+            await this.streamSimpleTextIntoElement(element, text, speed, onProgress);
         }
     }
 
     // Stream mixed HTML and text content
-    async streamMixedContent(targetElement, sourceElement, speed) {
+    async streamMixedContent(targetElement, sourceElement, speed, onProgress) {
         for (const child of sourceElement.childNodes) {
             if (child.nodeType === Node.TEXT_NODE) {
-                const text = child.textContent.trim();
+                const text = child.textContent; // Don't trim, preserve spaces
                 if (text) {
-                    await this.streamSimpleTextIntoElement(targetElement, text, speed);
+                    await this.streamSimpleTextIntoElement(targetElement, text, speed, onProgress);
                 }
             } else if (child.nodeType === Node.ELEMENT_NODE) {
-                // For inline formatted elements like <strong>, <em>, <code>
-                const formattedElement = child.cloneNode(false); // Clone without children
+                const formattedElement = child.cloneNode(false);
                 targetElement.appendChild(formattedElement);
                 
-                // Stream the content inside the formatted element
                 if (child.textContent) {
-                    await this.streamSimpleTextIntoElement(formattedElement, child.textContent, speed);
+                    await this.streamSimpleTextIntoElement(formattedElement, child.textContent, speed, onProgress);
                 }
                 
-                await this.delay(30); // Brief pause after formatted elements
+                await this.delay(30);
             }
         }
     }
 
     // Stream simple text into an element
-    async streamSimpleTextIntoElement(element, text, speed) {
-        const words = text.split(' ');
-        
+    async streamSimpleTextIntoElement(element, text, speed, onProgress) {
+        const words = text.split(/(\s+)/); // Split by spaces but keep them
+
         for (let i = 0; i < words.length; i++) {
-            const word = words[i];
-            if (word.trim()) {
+            const part = words[i];
+            if (part) {
                 const wordSpan = document.createElement('span');
                 wordSpan.className = 'word';
-                wordSpan.textContent = word + (i < words.length - 1 ? ' ' : '');
+                wordSpan.textContent = part;
                 element.appendChild(wordSpan);
-                
+
                 setTimeout(() => {
                     wordSpan.style.opacity = '1';
                 }, 10);
-                
-                await this.delay(speed);
+
+                // Only delay for non-whitespace parts
+                if (part.trim()) {
+                    await this.delay(speed);
+                    if (onProgress) onProgress();
+                }
             }
         }
     }
