@@ -2,6 +2,7 @@ import { setupMicrophone, startAudioProcessing, stopAudioProcessing } from './au
 import { autofillForTesting } from './dev.js';
 import { loadConfig, isDev, devLog, devWarn, devError } from './config.js';
 import liveInterviewUI from './live-interview.js';
+import hotkeyManager from './hotkeys.js';
 
 // --- Config (now loaded from backend) ---
 // DEV_MODE is now centralized and loaded from .env via backend API
@@ -194,6 +195,9 @@ async function startInterview() {
     liveInterviewUI.init();
     liveInterviewUI.initialize();
     
+    // Enable hotkeys for live interview
+    hotkeyManager.setEnabled(true);
+    
     // Define the callback that sends audio data over the socket
     const onAudioData = (audioData, speakerHint) => {
         // Send raw audio data - backend will use improved speaker detection
@@ -214,6 +218,9 @@ async function startInterview() {
 function endInterview() {
     stopAudioProcessing();
     sendSocketMessage('end_interview', {});
+    
+    // Disable hotkeys when leaving live interview
+    hotkeyManager.setEnabled(false);
     
     // Clear the live interview UI
     if (window.liveInterviewUI) {
@@ -237,6 +244,9 @@ window.addEventListener('DOMContentLoaded', async () => {
     // Setup developer features if in dev mode
     setupDeveloperShortcuts();
     
+    // Initialize hotkeys (disabled by default, enabled during live interview)
+    hotkeyManager.setEnabled(false);
+    
     // Clean up unused elements from old UI
     const micVolume = document.getElementById('mic-volume');
     const systemVolume = document.getElementById('system-volume');
@@ -250,7 +260,7 @@ window.addEventListener('DOMContentLoaded', async () => {
 
 // --- Developer Shortcuts (controlled by centralized DEV_MODE) ---
 function setupDeveloperShortcuts() {
-    if (isDev()) {
+    
         devLog('🛠️ Developer shortcuts enabled');
         window.addEventListener('keydown', (e) => {
             if (e.ctrlKey && e.key === 'j') {
@@ -259,5 +269,5 @@ function setupDeveloperShortcuts() {
                 autofillForTesting(onboardingForm);
             }
         });
-    }
+    
 }

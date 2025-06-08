@@ -10,6 +10,12 @@ class LiveInterviewUI {
         this.currentAIElement = null; // Track AI message separately
         this.isStreaming = false;
         
+        // Smart scroll management
+        this.userHasScrolled = false;
+        this.lastScrollTop = 0;
+        this.scrollTimeout = null;
+        this.autoScrollEnabled = true;
+        
         // Configuration
         this.config = {
             enableStreaming: true,
@@ -35,6 +41,76 @@ class LiveInterviewUI {
                 this.endInterview();
             });
         }
+        
+        // Setup smart scroll detection
+        this.setupSmartScroll();
+    }
+
+    setupSmartScroll() {
+        if (!this.conversationStream) return;
+        
+        let scrollTimer = null;
+        
+        // Detect user scrolling
+        this.conversationStream.addEventListener('scroll', () => {
+            const currentScrollTop = this.conversationStream.scrollTop;
+            const maxScroll = this.conversationStream.scrollHeight - this.conversationStream.clientHeight;
+            
+            // Check if user scrolled up from bottom (not at bottom with tolerance)
+            if (currentScrollTop < maxScroll - 100) { // 100px tolerance
+                if (!this.userHasScrolled) {
+                    this.userHasScrolled = true;
+                    this.autoScrollEnabled = false;
+                    console.log('👆 User scrolled up - auto-scroll temporarily disabled');
+                }
+                
+                // Clear any existing timeout
+                if (this.scrollTimeout) {
+                    clearTimeout(this.scrollTimeout);
+                }
+                
+                // Re-enable auto-scroll after 5 seconds of no scrolling
+                this.scrollTimeout = setTimeout(() => {
+                    this.userHasScrolled = false;
+                    this.autoScrollEnabled = true;
+                    console.log('🔄 Auto-scroll re-enabled after timeout');
+                }, 5000);
+                
+            } else if (currentScrollTop >= maxScroll - 50) {
+                // User scrolled back near bottom - immediately re-enable
+                this.userHasScrolled = false;
+                this.autoScrollEnabled = true;
+                
+                if (this.scrollTimeout) {
+                    clearTimeout(this.scrollTimeout);
+                    this.scrollTimeout = null;
+                }
+            }
+            
+            this.lastScrollTop = currentScrollTop;
+        });
+        
+        // Detect mouse wheel for immediate but temporary override
+        this.conversationStream.addEventListener('wheel', (e) => {
+            if (e.deltaY < 0) { // Scrolling up
+                this.userHasScrolled = true;
+                this.autoScrollEnabled = false;
+                
+                // Clear any existing timeout
+                if (this.scrollTimeout) {
+                    clearTimeout(this.scrollTimeout);
+                }
+                
+                // Re-enable after shorter timeout for wheel scroll
+                this.scrollTimeout = setTimeout(() => {
+                    this.userHasScrolled = false;
+                    this.autoScrollEnabled = true;
+                    console.log('🔄 Auto-scroll re-enabled after wheel scroll timeout');
+                }, 3000);
+                
+                console.log('🖱️ User wheel scroll up - auto-scroll temporarily disabled');
+            }
+        });
     }
 
     // Show activity indicator
@@ -77,6 +153,11 @@ class LiveInterviewUI {
     addAIResponse(response) {
         this.currentAIElement = this.createMessageElement(response, 'ai-response');
         this.conversationStream.appendChild(this.currentAIElement);
+        
+        // Reset auto-scroll for new AI response (always auto-scroll new responses)
+        this.autoScrollEnabled = true;
+        this.userHasScrolled = false;
+        
         this.startStreaming(this.currentAIElement, response, true); // true for AI response
         this.scrollToBottom();
         this.hideActivity();
@@ -154,8 +235,15 @@ class LiveInterviewUI {
             }, 10);
             
             await this.delay(speed);
-            this.scrollToBottom();
+            
+            // Force scroll during streaming (every few words)
+            if (i % 3 === 0) {
+                this.scrollToBottom();
+            }
         }
+        
+        // Final scroll at end
+        this.scrollToBottom();
     }
 
     // Stream complex content with code
@@ -290,6 +378,9 @@ class LiveInterviewUI {
             
             // Clear the reference since this is final
             this.currentInterviewerElement = null;
+            
+            // Reset auto-scroll for new response
+            this.autoScrollEnabled = true;
         }
     }
 
@@ -330,10 +421,24 @@ class LiveInterviewUI {
         root.style.setProperty('--code-transparency', this.config.codeTransparency);
     }
 
-    // Scroll to bottom
+    // Smart scroll to bottom (respects user interaction)
     scrollToBottom() {
         if (this.conversationStream) {
+            if (this.autoScrollEnabled && !this.userHasScrolled) {
+                this.conversationStream.scrollTop = this.conversationStream.scrollHeight;
+                // console.log('📜 Auto-scrolled to bottom');
+            } else {
+                // console.log('📜 Scroll blocked - user has scrolled up');
+            }
+        }
+    }
+
+    // Force scroll to bottom (ignores user interaction)
+    forceScrollToBottom() {
+        if (this.conversationStream) {
             this.conversationStream.scrollTop = this.conversationStream.scrollHeight;
+            this.userHasScrolled = false;
+            this.autoScrollEnabled = true;
         }
     }
 
@@ -364,6 +469,15 @@ class LiveInterviewUI {
         this.clearConversation();
         this.showActivity('Listening...');
         this.updateCSSTransparency(); // Apply initial transparency settings
+        
+        // Reset scroll state
+        this.userHasScrolled = false;
+        this.autoScrollEnabled = true;
+        if (this.scrollTimeout) {
+            clearTimeout(this.scrollTimeout);
+            this.scrollTimeout = null;
+        }
+        
         console.log('🎬 Live interview UI initialized');
     }
 }
@@ -520,6 +634,49 @@ window.getTransparencyInfo = async () => {
         return info;
     } catch (error) {
         console.error('❌ Error getting transparency info:', error);
+    }
+};
+
+// Always-on-top controls
+window.setAlwaysOnTop = async (onTop = true) => {
+    try {
+        const response = await fetch('/api/window/always-on-top', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ on_top: onTop })
+        });
+        const result = await response.json();
+        if (result.success) {
+            console.log(`📌 ${result.message}`);
+        }
+    } catch (error) {
+        console.error('❌ Error setting always on top:', error);
+    }
+};
+
+window.enableAlwaysOnTop = () => window.setAlwaysOnTop(true);
+window.disableAlwaysOnTop = () => window.setAlwaysOnTop(false);
+
+// Smart scroll controls
+window.forceScrollToBottom = () => {
+    if (window.liveInterviewUI) {
+        window.liveInterviewUI.forceScrollToBottom();
+        console.log('📜 Forced scroll to bottom');
+    }
+};
+
+window.enableAutoScroll = () => {
+    if (window.liveInterviewUI) {
+        window.liveInterviewUI.autoScrollEnabled = true;
+        window.liveInterviewUI.userHasScrolled = false;
+        console.log('🔄 Auto-scroll enabled');
+    }
+};
+
+window.disableAutoScroll = () => {
+    if (window.liveInterviewUI) {
+        window.liveInterviewUI.autoScrollEnabled = false;
+        console.log('⏸️ Auto-scroll disabled');
     }
 };
 

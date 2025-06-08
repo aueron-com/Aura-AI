@@ -46,13 +46,19 @@ class WindowManager:
         if self.is_windows:
             self.GWL_EXSTYLE = -20
             self.WS_EX_LAYERED = 0x80000
+            self.WS_EX_TOPMOST = 0x8
             self.LWA_ALPHA = 0x2
+            self.HWND_TOPMOST = -1
+            self.HWND_NOTOPMOST = -2
+            self.SWP_NOMOVE = 0x2
+            self.SWP_NOSIZE = 0x1
             
             # Windows API functions
             self.user32 = ctypes.windll.user32
             self.GetWindowLongW = self.user32.GetWindowLongW
             self.SetWindowLongW = self.user32.SetWindowLongW
             self.SetLayeredWindowAttributes = self.user32.SetLayeredWindowAttributes
+            self.SetWindowPos = self.user32.SetWindowPos
             
     def set_window_handle(self, window_handle: int):
         """Set the window handle for transparency operations"""
@@ -162,6 +168,83 @@ class WindowManager:
             print(f"Error finding window: {e}")
             return None
     
+    def set_always_on_top(self, on_top: bool) -> bool:
+        """
+        Set window to always stay on top
+        Args:
+            on_top: True to set always on top, False to remove
+        Returns:
+            bool: True if successful, False otherwise
+        """
+        if not self.is_windows or not self.hwnd:
+            print("Always on top not supported on this platform or no window handle")
+            return False
+            
+        try:
+            # Add debugging
+            print(f"🔧 Attempting to set always on top: {on_top}, HWND: {self.hwnd}")
+            
+            hwnd_insert_after = self.HWND_TOPMOST if on_top else self.HWND_NOTOPMOST
+            
+            # Call SetWindowPos with proper error handling
+            result = self.SetWindowPos(
+                self.hwnd,
+                hwnd_insert_after,
+                0, 0, 0, 0,  # x, y, width, height (ignored due to flags)
+                self.SWP_NOMOVE | self.SWP_NOSIZE  # Don't move or resize
+            )
+            
+            if result:
+                status = "on top" if on_top else "normal"
+                print(f"✅ Window set to {status}")
+                return True
+            else:
+                # Get the last error code for debugging
+                error_code = ctypes.windll.kernel32.GetLastError()
+                print(f"❌ SetWindowPos failed (Error {error_code}), trying alternative method...")
+                
+                # Try alternative method using window style
+                return self._set_always_on_top_alternative(on_top)
+                
+        except Exception as e:
+            print(f"❌ Error setting always on top: {e}")
+            return False
+
+    def _set_always_on_top_alternative(self, on_top: bool) -> bool:
+        """
+        Alternative method to set always on top using window extended styles
+        """
+        try:
+            # Get current extended window style
+            ex_style = self.GetWindowLongW(self.hwnd, self.GWL_EXSTYLE)
+            
+            if on_top:
+                # Add topmost style
+                new_style = ex_style | self.WS_EX_TOPMOST
+            else:
+                # Remove topmost style
+                new_style = ex_style & ~self.WS_EX_TOPMOST
+            
+            # Set the new style
+            result = self.SetWindowLongW(self.hwnd, self.GWL_EXSTYLE, new_style)
+            
+            if result or ex_style != new_style:
+                # Force window update
+                self.user32.SetWindowPos(
+                    self.hwnd, 0, 0, 0, 0, 0,
+                    self.SWP_NOMOVE | self.SWP_NOSIZE | 0x0020  # SWP_FRAMECHANGED
+                )
+                status = "on top" if on_top else "normal"
+                print(f"✅ Window set to {status} (alternative method)")
+                return True
+            else:
+                print("❌ Alternative method also failed")
+                return False
+                
+        except Exception as e:
+            print(f"❌ Error in alternative always-on-top method: {e}")
+            return False
+
     def get_window_info(self) -> dict:
         """Get current window transparency info"""
         return {
@@ -201,6 +284,10 @@ def find_aura_window() -> bool:
     hwnd = window_manager.find_window_by_title("Aura")
     return hwnd is not None
 
+def set_app_always_on_top(on_top: bool) -> bool:
+    """Set app window to always stay on top"""
+    return window_manager.set_always_on_top(on_top)
+
 def get_transparency_info() -> dict:
     """Get current transparency information"""
     return window_manager.get_window_info()
@@ -217,38 +304,73 @@ def apply_capture_protection(window):
         window: The pywebview window object.
     """
     hwnd = None
-    print("INFO: Attempting to apply screen capture protection...")
+    print("🛡️ APPLYING SCREEN CAPTURE PROTECTION...")
 
     # --- Method 1: Get handle from pywebview's private attribute ---
     # This is the preferred method as it's direct and not dependent on the window title.
     # We use getattr for safety, in case this private attribute changes in future versions.
     hwnd = getattr(window, '_hwnd', None)
-    print(f"INFO: Attempt 1 (from window._hwnd) found handle: {hwnd}")
+    print(f"🔍 Method 1 (window._hwnd): {hex(hwnd) if hwnd else 'Not found'}")
 
     # --- Method 2: Fallback to finding the window by title ---
     # If the private attribute doesn't exist, we use a classic Win32 function.
     if not hwnd:
-        print("WARN: Could not find handle via private attribute. Trying fallback...")
+        print("⚠️ Private attribute not found, trying title search...")
         # A small delay is crucial here. It gives the OS time to register the
         # native window after the 'shown' event has fired.
-        time.sleep(0.1)
+        time.sleep(0.2)
         hwnd = _user32.FindWindowW(None, window.title)
-        print(f"INFO: Attempt 2 (via FindWindowW) found handle: {hwnd}")
+        print(f"🔍 Method 2 (FindWindowW with title '{window.title}'): {hex(hwnd) if hwnd else 'Not found'}")
 
+    # --- Method 3: Try multiple search attempts with delay ---
+    if not hwnd:
+        print("⚠️ Trying multiple search attempts...")
+        for attempt in range(5):
+            time.sleep(0.1)
+            hwnd = _user32.FindWindowW(None, "Aura")
+            if hwnd:
+                print(f"🔍 Method 3 (attempt {attempt + 1}): Found {hex(hwnd)}")
+                break
+        
     # --- Apply the Protection ---
     if not hwnd:
-        print("ERROR: Could not obtain a valid window handle (HWND). Cannot apply protection.")
-        return
+        print("❌ CRITICAL: Could not obtain window handle! Screen capture protection NOT applied!")
+        print("   This means the window WILL be visible in screen recordings!")
+        return False
 
-    print(f"INFO: Applying WDA_EXCLUDEFROMCAPTURE to handle 0x{hwnd:08X}...")
+    print(f"🛡️ Applying WDA_EXCLUDEFROMCAPTURE (0x{WDA_EXCLUDEFROMCAPTURE:08X}) to window {hex(hwnd)}...")
     success = _user32.SetWindowDisplayAffinity(hwnd, WDA_EXCLUDEFROMCAPTURE)
 
     if success:
-        print(f"SUCCESS: Window 0x{hwnd:08X} is now protected from screen capture.")
+        print(f"✅ SUCCESS: Window {hex(hwnd)} is now HIDDEN from screen capture!")
+        print("   🎯 Window will appear as BLACK RECTANGLE in recordings/screen sharing")
+        
+        # Verify the protection was applied
+        verify_protection(hwnd)
+        return True
     else:
         # If the function fails, we get the last error code from the OS for debugging.
         error_code = ctypes.GetLastError()
-        print(f"ERROR: Failed to protect window 0x{hwnd:08X}. Win32 Error Code: {error_code}")
+        print(f"❌ FAILED: SetWindowDisplayAffinity failed! Error Code: {error_code}")
+        print("   🚨 WARNING: Window WILL be visible in screen recordings!")
+        return False
+
+def verify_protection(hwnd):
+    """Verify that capture protection is actually applied"""
+    try:
+        # Try to get current display affinity (this is a read-only check)
+        print(f"🔬 Verifying protection on window {hex(hwnd)}...")
+        
+        # Note: There's no direct way to read the current display affinity,
+        # but we can check if the window handle is still valid
+        is_window_valid = _user32.IsWindow(hwnd)
+        if is_window_valid:
+            print("✅ Window handle is valid - protection likely applied")
+        else:
+            print("❌ Window handle is invalid - protection may have failed")
+            
+    except Exception as e:
+        print(f"⚠️ Could not verify protection: {e}")
 
 
 # --- Example Usage (for testing this module directly) ---

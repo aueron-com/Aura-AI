@@ -7,11 +7,14 @@ from threading import Thread
 import window_manager  # Our new module for capture protection
 import os
 from api import websocket, config_api
-from core.config import settings
+from core.config import settings, print_config_debug
 
 # --- Development Flag (now from .env) ---
 # DEV_MODE is now controlled via .env file - see core/config.py
 DEV_MODE = settings.DEV_MODE
+
+# Print configuration debug info at startup
+print_config_debug()
 
 
 # --- FastAPI App Setup ---
@@ -52,16 +55,25 @@ if __name__ == '__main__':
 
     # 5. Apply capture protection and transparency (or skip in DEV_MODE)
     def on_window_shown():
+        print(f"🔧 Window shown event fired. DEV_MODE = {DEV_MODE}")
+        
         if not DEV_MODE:
-            window_manager.apply_capture_protection(window)
+            print("🛡️ DEV_MODE is False - Applying screen capture protection...")
+            protection_success = window_manager.apply_capture_protection(window)
+            if protection_success:
+                print("✅ Screen capture protection successfully applied!")
+            else:
+                print("❌ CRITICAL: Screen capture protection FAILED!")
+                print("   🚨 WARNING: Window will be visible in screen recordings!")
         else:
-            print("INFO: DEV_MODE is True. Skipping screen capture protection.")
+            print("ℹ️ DEV_MODE is True. Skipping screen capture protection.")
+            print("   📋 Note: Window WILL be visible in screen recordings during development")
         
-        # Set up window transparency
+        # Set up window transparency and always-on-top
         import time
-        time.sleep(0.5)  # Give window time to fully initialize
+        time.sleep(1.0)  # Give window more time to fully initialize
         
-        # Find and configure window transparency
+        # Find and configure window transparency and always-on-top
         if window_manager.find_aura_window():
             # Set default transparency to 40% transparent (60% opacity) for interviews
             success = window_manager.set_app_transparency(0.6)
@@ -69,6 +81,23 @@ if __name__ == '__main__':
                 print("🌙 Window transparency initialized (60% opacity)")
             else:
                 print("⚠️ Failed to set window transparency")
+                
+            # Wait a bit more before setting always-on-top
+            time.sleep(0.5)
+            
+            # Set window to always stay on top with retries
+            always_on_top_success = False
+            for attempt in range(3):
+                always_on_top_success = window_manager.set_app_always_on_top(True)
+                if always_on_top_success:
+                    print("📌 Window set to always stay on top")
+                    break
+                else:
+                    print(f"⚠️ Always-on-top attempt {attempt + 1} failed, retrying...")
+                    time.sleep(0.3)
+            
+            if not always_on_top_success:
+                print("⚠️ Failed to set always on top after 3 attempts")
         else:
             print("⚠️ Could not find Aura window for transparency control")
     
