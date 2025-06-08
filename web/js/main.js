@@ -133,10 +133,10 @@ async function runPreFlightChecks() {
         updateCheckStatus(checks.micSelection, 'error', 'Microphone Selection Failed');
         return;
     }
-    
+
     // 2. Backend Connection
     connectWebSocket();
-    
+
     // 3. AI Provider Check
     verifyAiProvider();
 }
@@ -187,21 +187,21 @@ function connectWebSocket() {
     const socket = new WebSocket("ws://127.0.0.1:8002/ws");
     appState.socket = socket;
 
-    socket.onopen = function(e) {
+    socket.onopen = function (e) {
         console.log("[open] Connection established");
         updateCheckStatus(checks.backend, 'success', 'Backend Connected');
         updateCheckStatus(checks.deepgram, 'pending', 'Checking Deepgram API...');
     };
 
-    socket.onclose = function(event) {
+    socket.onclose = function (event) {
         updateCheckStatus(checks.backend, 'error', 'Backend Disconnected');
     };
 
-    socket.onerror = function(error) {
+    socket.onerror = function (error) {
         updateCheckStatus(checks.backend, 'error', 'Backend Connection Failed');
     };
 
-    socket.onmessage = function(event) {
+    socket.onmessage = function (event) {
         const data = JSON.parse(event.data);
         devLog("Received from backend:", data);
 
@@ -248,7 +248,7 @@ async function startInterview() {
     liveInterviewUI.init(); // CRITICAL FIX: Initialize DOM elements first
     liveInterviewUI.initialize();
     hotkeyManager.setEnabled(true);
-    
+
     const onAudioData = (audioData, speakerHint) => {
         // The audio_handler now controls whether data is sent.
         // We just need to pass the current mic mute state along with the chunk.
@@ -256,13 +256,13 @@ async function startInterview() {
     };
 
     const processingStarted = await startAudioProcessing(micSelect.value, onAudioData);
-    
+
     if (!processingStarted) {
         alert("Could not start audio streams. Please check permissions and try again.");
         switchView('preflight');
         return;
     }
-    
+
     const initialMuteStatus = muteManager.getMuteStatus();
     sendSocketMessage('start_interview', {
         aiProvider: appState.selectedProvider,
@@ -277,11 +277,11 @@ async function endInterview() {
     stopAudioProcessing();
     sendSocketMessage('end_interview', {});
     hotkeyManager.setEnabled(false);
-    
+
     if (window.liveInterviewUI) {
         liveInterviewUI.clearConversation();
     }
-    
+
     switchView('onboarding');
 }
 
@@ -289,7 +289,7 @@ async function loadAiProviders() {
     try {
         const response = await fetch('/api/ai-providers');
         appState.aiProviders = await response.json();
-        
+
         const providerSelect = onboardingForm.providerSelect;
         providerSelect.innerHTML = '<option value="">Select AI Provider</option>';
         appState.aiProviders.forEach(p => {
@@ -298,7 +298,7 @@ async function loadAiProviders() {
             option.textContent = p.name;
             providerSelect.appendChild(option);
         });
-        
+
         // Use requestAnimationFrame to ensure DOM is ready
         requestAnimationFrame(() => {
             setDefaultAIProvider();
@@ -314,10 +314,10 @@ function setDefaultAIProvider() {
         if (defaultProvider && onboardingForm.providerSelect) {
             // Set provider
             onboardingForm.providerSelect.value = defaultProvider.name;
-            
+
             // Trigger change event to update model dropdown
             onboardingForm.providerSelect.dispatchEvent(new Event('change'));
-            
+
             // Set default model after dropdown is populated
             setTimeout(() => {
                 if (onboardingForm.modelSelect && !onboardingForm.modelSelect.disabled) {
@@ -375,14 +375,14 @@ window.sendSocketMessage = sendSocketMessage; // Expose for global config
 
 // --- Developer Shortcuts ---
 function setupDeveloperShortcuts() {
-    if (isDev()) {
-        devLog('🛠️ Developer shortcuts enabled');
-        window.addEventListener('keydown', (e) => {
-            if (e.ctrlKey && e.key === 'j') {
-                e.preventDefault();
-                devLog('🛠️ Auto-filling form via Ctrl+J');
-                autofillForTesting(onboardingForm);
-            }
-        });
-    }
+
+    devLog('🛠️ Developer shortcuts enabled');
+    window.addEventListener('keydown', (e) => {
+        if (e.ctrlKey && e.key === 'j') {
+            e.preventDefault();
+            devLog('🛠️ Auto-filling form via Ctrl+J');
+            autofillForTesting(onboardingForm);
+        }
+    });
+
 }

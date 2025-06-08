@@ -63,6 +63,7 @@ class WindowManager:
         self.WS_EX_LAYERED = 0x80000
         self.WS_EX_TOPMOST = 0x8
         self.WS_EX_TRANSPARENT = 0x20
+        self.WS_EX_TOOLWINDOW = 0x80  # Added for taskbar hiding
         self.LWA_ALPHA = 0x2
         self.HWND_TOPMOST = -1
         self.HWND_NOTOPMOST = -2
@@ -332,6 +333,24 @@ class WindowManager:
             # Re-apply always-on-top state when showing the window
             self.set_always_on_top(True)
 
+    def hide_from_taskbar(self) -> bool:
+        """Hide the window from the taskbar by setting WS_EX_TOOLWINDOW."""
+        if not self.is_windows or not self.hwnd:
+            print("Cannot hide from taskbar: Not on Windows or no window handle")
+            return False
+        try:
+            # Get current extended style
+            ex_style = self.GetWindowLongPtr(self.hwnd, self.GWL_EXSTYLE)
+            # Add WS_EX_TOOLWINDOW and remove WS_EX_APPWINDOW (0x40000) if present
+            new_style = (ex_style | self.WS_EX_TOOLWINDOW) & ~0x40000
+            # Set the new style
+            self.SetWindowLongPtr(self.hwnd, self.GWL_EXSTYLE, new_style)
+            print("✅ Window hidden from taskbar")
+            return True
+        except Exception as e:
+            print(f"❌ Error hiding from taskbar: {e}")
+            return False
+
     def _start_hotkey_listener_thread(self):
         """The actual listener thread for global hotkeys."""
         print("🎧 Starting global hotkey listener thread...")
@@ -349,7 +368,6 @@ class WindowManager:
         
         with keyboard.GlobalHotKeys(hotkey_map) as h:
             h.join()
-
 
     def start_hotkey_listener(self):
         """Starts the global hotkey listener in a separate thread."""
@@ -456,6 +474,10 @@ def apply_capture_protection(window):
     if success:
         print(f"✅ SUCCESS: Window {hex(hwnd)} is now HIDDEN from screen capture!")
         print("   🎯 Window will appear as BLACK RECTANGLE in recordings/screen sharing")
+        
+        # Set window handle and hide from taskbar
+        window_manager.set_window_handle(hwnd)
+        window_manager.hide_from_taskbar()
         
         # Verify the protection was applied
         verify_protection(hwnd)
