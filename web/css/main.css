@@ -1,34 +1,79 @@
+/* ===== PREMIUM UI - PROFESSIONAL MONOCHROMATIC DESIGN ===== */
+
 :root {
-    --bg-color: #1a1b26;
-    --surface-color: #24283b;
-    --highlight-color: #7aa2f7;
-    --text-color: #c0caf5;
-    --subtle-text-color: #a9b1d6;
-    --green: #9ece6a;
-    --red: #f7768e;
-    --border-radius: 10px;
+    /* === PROFESSIONAL COLOR PALETTE === */
+    /* Pure Monochromatic Base */
+    --pure-black: #000000;
+    --pure-white: #ffffff;
+    --charcoal: #1a1a1a;
+    --steel-gray: #2a2a2a;
+    --silver: #e5e5e5;
+    --light-gray: #f5f5f5;
+    
+    /* Professional Accents */
+    --electric-blue: #0066ff;
+    --success-green: #00d084;
+    --warning-orange: #ff6b35;
+    --subtle-purple: #6366f1;
+    
+    /* Semantic Colors */
+    --bg-primary: var(--pure-black);
+    --bg-secondary: var(--charcoal);
+    --bg-tertiary: var(--steel-gray);
+    --text-primary: var(--pure-white);
+    --text-secondary: var(--silver);
+    --border-color: var(--steel-gray);
+    --accent-primary: var(--electric-blue);
+    --accent-success: var(--success-green);
+    --accent-warning: var(--warning-orange);
+    
+    /* === GEOMETRIC SPACING SYSTEM === */
+    --space-xs: 4px;
+    --space-sm: 8px;
+    --space-md: 16px;
+    --space-lg: 24px;
+    --space-xl: 32px;
+    
+    /* === TYPOGRAPHY SCALE === */
+    --font-xs: 12px;
+    --font-sm: 14px;
+    --font-base: 16px;
+    --font-lg: 20px;
+    --font-xl: 24px;
+    --font-2xl: 32px;
+    
+    /* === PROFESSIONAL TRANSITIONS === */
+    --transition-fast: 0.15s cubic-bezier(0.4, 0, 0.2, 1);
+    --transition-base: 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* ===== BASE STYLES ===== */
+* {
+    box-sizing: border-box;
 }
 
 body {
-    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-    background-color: var(--bg-color);
-    color: var(--text-color);
+    font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "Inter", "Segoe UI", Roboto, sans-serif;
+    background: linear-gradient(180deg, var(--charcoal) 0%, var(--pure-black) 100%);
+    color: var(--text-primary);
     margin: 0;
     padding: 0;
     min-height: 100vh;
     overflow-x: hidden;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
+    font-size: var(--font-base);
+    line-height: 1.5;
     display: flex;
     flex-direction: column;
 }
 
+/* ===== VIEW MANAGEMENT ===== */
 .view {
     display: none;
     width: 100%;
     min-height: 100vh;
-    padding: 1rem;
-    box-sizing: border-box;
+    padding: var(--space-md);
     justify-content: center;
     align-items: flex-start;
     overflow-y: auto;
@@ -47,207 +92,398 @@ body {
     bottom: 0;
 }
 
-/* Specific styling for preflight view */
 #preflight-view.active {
     align-items: center;
     justify-content: center;
-    overflow-y: auto;
 }
 
 #preflight-view .container {
-    max-height: none;
     margin: auto;
 }
 
+/* ===== CONTAINER SYSTEM - OPTIMIZED FOR SMALL WINDOWS ===== */
 .container {
-    background: var(--surface-color);
-    padding: 2.5rem;
-    border-radius: var(--border-radius);
-    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+    background: var(--bg-secondary);
+    padding: var(--space-lg);
+    border: 1px solid var(--border-color);
     width: 100%;
-    max-width: 900px;
-    border: 1px solid rgba(255, 255, 255, 0.1);
+    max-width: 600px;
     margin: 0 auto;
-    box-sizing: border-box;
+    position: relative;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3); /* Add subtle depth */
 }
 
-/* Add margin only for non-preflight views */
+/* Compact layout for onboarding */
 #onboarding-view .container {
-    margin: 2rem auto;
+    margin: var(--space-sm) auto;
+    padding: var(--space-md);
+    max-width: 1200px; /* Widen container to fit two columns */
 }
 
+/* ===== TWO-COLUMN GRID SYSTEM ===== */
+.onboarding-grid {
+    display: grid;
+    grid-template-columns: 1fr; /* Default to single column */
+    gap: var(--space-lg);
+}
+
+/* ===== TYPOGRAPHY SYSTEM ===== */
 h1 {
-    text-align: center;
-    margin-top: 0;
-    margin-bottom: 0.5em;
-    color: var(--highlight-color);
+    font-size: var(--font-xl);
     font-weight: 600;
-    font-size: 2rem;
+    color: var(--text-primary);
+    margin: 0 0 var(--space-sm) 0;
+    text-align: center;
+    letter-spacing: -0.025em;
 }
 
 .subtitle {
+    font-size: var(--font-sm);
+    color: var(--text-secondary);
     text-align: center;
-    margin-top: 0;
-    margin-bottom: 2.5em;
-    color: var(--subtle-text-color);
-    font-size: 1rem;
+    margin: 0 0 var(--space-lg) 0;
+    font-weight: 400;
 }
 
-/* --- Onboarding Form --- */
+/* ===== FORM SECTION SYSTEM ===== */
 fieldset {
     border: none;
-    padding: 1.5rem 0;
-    margin-bottom: 1.5rem;
-    border-top: 1px solid rgba(255, 255, 255, 0.1);
+    padding: 0;
+    margin: 0 0 var(--space-sm) 0; /* Tighter spacing */
+    border-top: 1px solid var(--border-color);
+    padding-top: var(--space-sm); /* Tighter spacing */
+}
+
+fieldset:first-of-type {
+    border-top: none;
+    padding-top: 0;
 }
 
 legend {
-    color: var(--highlight-color);
+    color: var(--text-primary);
     font-weight: 500;
-    padding: 0 1em;
-    margin-left: -1em;
-    font-size: 1.1rem;
+    font-size: var(--font-sm);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    padding: 0 var(--space-sm);
+    margin-left: calc(-1 * var(--space-sm));
+    background: var(--bg-secondary);
 }
 
+/* ===== FORM ELEMENTS - PROFESSIONAL GEOMETRIC DESIGN ===== */
 input[type="text"],
 textarea,
 select {
     width: 100%;
-    background: rgba(0,0,0,0.3);
-    border: 1px solid transparent;
-    border-radius: 8px;
-    padding: 0.9rem;
-    color: var(--text-color);
-    margin-bottom: 1rem;
-    box-sizing: border-box;
-    transition: all 0.2s;
-    font-size: 1rem;
+    background: var(--bg-primary);
+    border: 1px solid var(--border-color);
+    padding: var(--space-sm) var(--space-md);
+    color: var(--text-primary);
+    font-size: var(--font-sm);
+    margin-bottom: var(--space-sm);
+    transition: all var(--transition-fast);
+    font-family: inherit;
+    font-weight: 400;
+    position: relative;
 }
 
+/* Professional focus states with sharp geometric outlines */
 input[type="text"]:focus,
 textarea:focus,
 select:focus {
     outline: none;
-    border-color: var(--highlight-color);
-    box-shadow: 0 0 0 3px rgba(122, 162, 247, 0.3);
+    border-color: var(--accent-primary);
+    box-shadow:
+        0 0 0 1px var(--accent-primary),
+        inset 0 0 0 1px rgba(0, 102, 255, 0.1);
+    background: rgba(0, 102, 255, 0.02);
 }
 
+/* Enhanced placeholder styling */
 input::placeholder,
 textarea::placeholder {
-    color: #6a708a;
+    color: var(--text-secondary);
+    opacity: 0.6;
+    font-style: italic;
+    font-weight: 300;
 }
 
-input:required:invalid,
-textarea:required:invalid,
-select:required:invalid {
-    border-left: 4px solid var(--red);
+/* Professional validation states with sharp geometric indicators */
+input:required:invalid:not(:focus):not(:placeholder-shown),
+textarea:required:invalid:not(:focus):not(:placeholder-shown),
+select:required:invalid:not(:focus) {
+    border-left: 3px solid var(--accent-warning);
+    background: rgba(255, 107, 53, 0.02);
 }
 
 input:required:valid,
 textarea:required:valid,
 select:required:valid {
-    border-left: 4px solid var(--green);
+    border-left: 3px solid var(--accent-success);
+    background: rgba(0, 208, 132, 0.02);
 }
 
-
+/* Professional textarea with geometric styling */
 textarea {
-    min-height: 100px;
+    min-height: 80px;
     resize: vertical;
+    font-family: inherit;
+    line-height: 1.4;
 }
 
+/* Custom select dropdown styling */
+select {
+    background-image: url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%23e5e5e5' d='M6 8L2 4h8z'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 12px center;
+    background-size: 12px;
+    padding-right: 40px;
+    appearance: none;
+    -webkit-appearance: none;
+    -moz-appearance: none;
+    cursor: pointer;
+}
+
+select:focus {
+    outline: none; /* Removes the default blue box */
+    background-image: url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%230066ff' d='M6 8L2 4h8z'/%3E%3C/svg%3E");
+}
+
+/* Styling for dropdown options for readability */
+select option {
+    background: var(--pure-white);
+    color: var(--pure-black);
+    font-weight: 500;
+}
+
+/* Professional disabled state */
+input:disabled,
+textarea:disabled,
+select:disabled {
+    background: var(--bg-tertiary);
+    color: var(--text-secondary);
+    border-color: var(--border-color);
+    opacity: 0.6;
+    cursor: not-allowed;
+}
+
+/* ===== PROFESSIONAL CHECKBOX SYSTEM ===== */
 .checkbox-group {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-    gap: 1rem;
+    grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+    gap: var(--space-sm);
 }
 
 .checkbox-group label {
     display: flex;
     align-items: center;
-    gap: 0.7em;
+    gap: var(--space-sm);
     cursor: pointer;
-    font-size: 0.95rem;
-    padding: 0.8rem 1rem;
-    background: rgba(0,0,0,0.2);
-    border-radius: 8px;
-    transition: all 0.2s ease;
+    font-size: var(--font-sm);
+    padding: var(--space-sm);
+    background: var(--bg-primary);
+    border: 1px solid var(--border-color);
+    transition: all var(--transition-fast);
+    font-weight: 400;
+    position: relative;
+    user-select: none;
 }
 
 .checkbox-group label:hover {
-    background: rgba(0,0,0,0.4);
+    border-color: var(--accent-primary);
+    background: rgba(0, 102, 255, 0.03);
+    transform: translateY(-1px);
 }
 
+.checkbox-group label:active {
+    transform: translateY(0);
+}
+
+/* Custom geometric checkbox styling */
+.checkbox-group label input[type="checkbox"] {
+    appearance: none;
+    -webkit-appearance: none;
+    width: 16px;
+    height: 16px;
+    border: 1px solid var(--border-color);
+    background: var(--bg-primary);
+    margin: 0;
+    cursor: pointer;
+    transition: all var(--transition-fast);
+    position: relative;
+}
+
+.checkbox-group label input[type="checkbox"]:checked {
+    background: var(--accent-primary);
+    border-color: var(--accent-primary);
+}
+
+.checkbox-group label input[type="checkbox"]:checked::after {
+    content: '';
+    position: absolute;
+    left: 3px;
+    top: 0px;
+    width: 6px;
+    height: 10px;
+    border: solid var(--pure-white);
+    border-width: 0 2px 2px 0;
+    transform: rotate(45deg);
+}
+
+.checkbox-group label input[type="checkbox"]:focus {
+    outline: 1px solid var(--accent-primary);
+    outline-offset: 1px;
+}
+
+/* Selected state for entire label */
+.checkbox-group label:has(input:checked) {
+    background: rgba(0, 102, 255, 0.05);
+    border-color: var(--accent-primary);
+    color: var(--text-primary);
+}
+
+/* ===== AI CONFIGURATION - SIDE BY SIDE ===== */
 .ai-config-group {
-    display: flex;
-    gap: 1rem;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: var(--space-sm);
 }
 
-/* --- Pre-Flight Check --- */
+/* ===== PROFESSIONAL BUTTON SYSTEM ===== */
+button {
+    display: block;
+    width: 100%;
+    padding: var(--space-md) var(--space-lg);
+    font-size: var(--font-sm);
+    font-weight: 500;
+    color: var(--text-primary);
+    background: var(--accent-primary);
+    border: 1px solid var(--accent-primary);
+    margin-top: var(--space-lg); /* More space for primary action */
+    cursor: pointer;
+    transition: all var(--transition-fast);
+    font-family: inherit;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    position: relative;
+    overflow: hidden;
+}
+
+/* Professional hover effects with geometric precision */
+button:hover:not(:disabled) {
+    background: var(--bg-primary);
+    color: var(--accent-primary);
+    transform: translateY(-2px); /* More noticeable lift */
+    box-shadow:
+        0 4px 12px rgba(0, 102, 255, 0.25), /* Deeper shadow */
+        inset 0 0 0 1px var(--accent-primary);
+}
+
+button:active:not(:disabled) {
+    transform: translateY(0);
+    box-shadow:
+        0 1px 4px rgba(0, 102, 255, 0.1),
+        inset 0 0 0 1px var(--accent-primary);
+}
+
+/* Professional focus state */
+button:focus-visible {
+    outline: 2px solid var(--accent-primary);
+    outline-offset: 2px;
+}
+
+/* Enhanced disabled state */
+button:disabled {
+    background: var(--bg-tertiary);
+    border-color: var(--border-color);
+    color: var(--text-secondary);
+    cursor: not-allowed;
+    opacity: 0.5;
+    transform: none;
+    box-shadow: none;
+}
+
+/* Primary button styling */
+#proceed-to-checks {
+    background: var(--accent-primary);
+    border-color: var(--accent-primary);
+    font-weight: 600;
+}
+
+#proceed-to-checks:hover:not(:disabled) {
+    background: var(--bg-primary);
+    color: var(--accent-primary);
+    box-shadow:
+        0 4px 12px rgba(0, 102, 255, 0.3),
+        inset 0 0 0 1px var(--accent-primary);
+}
+
+/* Loading state animation */
+button.loading {
+    color: transparent;
+    pointer-events: none;
+}
+
+button.loading::after {
+    content: '';
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: 16px;
+    height: 16px;
+    margin: -8px 0 0 -8px;
+    border: 2px solid transparent;
+    border-top: 2px solid var(--text-primary);
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}
+
+/* ===== PREFLIGHT CHECK SYSTEM ===== */
 #checks {
-    background-color: rgba(0,0,0,0.2);
-    border-radius: var(--border-radius);
-    padding: 1.5rem;
-    margin-bottom: 1.5rem;
+    background: var(--bg-primary);
+    border: 1px solid var(--border-color);
+    padding: var(--space-md);
+    margin-bottom: var(--space-md);
 }
 
 .check-item {
     display: flex;
     align-items: center;
-    padding: 1rem;
-    border-bottom: 1px solid rgba(255, 255, 255, 0.05);
-    font-size: 1.05rem;
+    padding: var(--space-sm) 0;
+    border-bottom: 1px solid var(--border-color);
+    font-size: var(--font-sm);
 }
+
 .check-item:last-child {
     border-bottom: none;
 }
 
 .indicator {
-    margin-right: 1.5rem;
-    font-size: 1.5rem;
-    line-height: 1;
-    min-width: 2rem;
+    margin-right: var(--space-md);
+    font-size: var(--font-lg);
+    min-width: var(--space-xl);
     text-align: center;
 }
 
 #mic-select {
     margin-left: auto;
-    background: var(--surface-color);
-    color: var(--text-color);
-    border: 1px solid var(--highlight-color);
-    border-radius: 6px;
-    padding: 0.4rem 0.6rem;
-    font-size: 0.9rem;
-}
-
-/* --- Buttons --- */
-button {
-    display: block;
-    width: 100%;
-    padding: 1rem;
-    font-size: 1.1rem;
-    font-weight: 500;
-    color: #fff;
-    border: none;
-    border-radius: 8px;
-    margin-top: 1.5rem;
-    cursor: pointer;
-    transition: all 0.2s;
-    box-sizing: border-box;
-}
-
-button:not(:disabled):hover {
-    transform: translateY(-2px);
-    box-shadow: 0 6px 15px rgba(0, 0, 0, 0.3);
-}
-
-#proceed-to-checks {
-    background: linear-gradient(45deg, #6772ff, #7aa2f7);
+    background: var(--bg-secondary);
+    color: var(--text-primary);
+    border: 1px solid var(--border-color);
+    padding: var(--space-xs) var(--space-sm);
+    font-size: var(--font-xs);
 }
 
 .preflight-buttons {
-    display: flex;
-    gap: 1rem;
-    margin-top: 2rem;
+    display: grid;
+    grid-template-columns: 1fr 2fr;
+    gap: var(--space-sm);
+    margin-top: var(--space-md);
 }
 
 .preflight-buttons button {
@@ -255,53 +491,145 @@ button:not(:disabled):hover {
 }
 
 #start-interview-button {
-    background: linear-gradient(45deg, #28a745, #9ece6a);
+    background: var(--accent-success);
+    border-color: var(--accent-success);
+}
+
+#start-interview-button:hover:not(:disabled) {
+    background: var(--bg-primary);
+    color: var(--accent-success);
 }
 
 #back-to-onboarding-btn {
-    background: linear-gradient(45deg, #6c757d, #a9b1d6);
-    color: var(--bg-color);
+    background: var(--bg-tertiary);
+    border-color: var(--border-color);
+    color: var(--text-secondary);
 }
 
-
-button:disabled {
-    background-color: #5c6370;
-    cursor: not-allowed;
-    opacity: 0.6;
+#back-to-onboarding-btn:hover {
+    background: var(--bg-primary);
+    color: var(--text-primary);
+    border-color: var(--text-secondary);
 }
 
-/* --- Responsive Design --- */
-@media (max-width: 768px) {
+/* ===== RESPONSIVE DESIGN - SMALL WINDOW OPTIMIZED ===== */
+
+/* Compact Windows (400-500px) */
+@media (max-width: 500px) {
     .container {
-        padding: 1.5rem;
-        margin: 0 auto;
+        padding: var(--space-md);
+        margin: var(--space-xs) auto;
     }
     
     #onboarding-view .container {
-        margin: 1rem auto;
+        margin: var(--space-xs) auto;
+        padding: var(--space-sm);
     }
     
     .view {
-        padding: 0.5rem;
+        padding: var(--space-xs);
     }
     
     h1 {
-        font-size: 1.8rem;
+        font-size: var(--font-lg);
     }
     
     .checkbox-group {
         grid-template-columns: 1fr;
     }
-}
-
-@media (max-height: 600px) {
-    #preflight-view.active {
-        align-items: flex-start;
-        padding-top: 2rem;
+    
+    .ai-config-group {
+        grid-template-columns: 1fr;
     }
     
-    #checks {
-        max-height: 40vh;
-        overflow-y: auto;
+    fieldset {
+        margin-bottom: var(--space-sm);
     }
+    
+    legend {
+        font-size: var(--font-xs);
+    }
+}
+
+/* Medium Windows (501-600px) */
+@media (min-width: 501px) and (max-width: 600px) {
+    .checkbox-group {
+        grid-template-columns: repeat(2, 1fr);
+    }
+}
+
+/* Larger Windows (600px+) */
+@media (min-width: 601px) {
+    .checkbox-group {
+        grid-template-columns: repeat(2, 1fr); /* Keep checkboxes compact */
+    }
+}
+
+/* Apply two-column layout on wider screens */
+@media (min-width: 768px) {
+    .onboarding-grid {
+        grid-template-columns: 1fr 1fr;
+    }
+
+     #onboarding-view .container {
+        padding: var(--space-lg);
+    }
+    
+    .checkbox-group {
+        grid-template-columns: repeat(2, 1fr);
+    }
+}
+
+@media (min-width: 1024px) {
+    .checkbox-group {
+        grid-template-columns: repeat(3, 1fr);
+    }
+}
+
+/* Ultra-compact height optimization */
+@media (max-height: 600px) {
+    #onboarding-view .container {
+        margin: var(--space-xs) auto;
+    }
+    
+    fieldset {
+        margin-bottom: var(--space-sm);
+    }
+    
+    .subtitle {
+        margin-bottom: var(--space-sm);
+    }
+    
+    textarea {
+        min-height: 60px;
+    }
+}
+
+/* ===== PROFESSIONAL FOCUS STATES ===== */
+*:focus-visible {
+    outline: 1px solid var(--accent-primary);
+    outline-offset: 1px;
+}
+
+/* ===== SELECTION STYLING ===== */
+::selection {
+    background: var(--accent-primary);
+    color: var(--text-primary);
+}
+
+/* ===== SCROLLBAR STYLING ===== */
+::-webkit-scrollbar {
+    width: 6px;
+}
+
+::-webkit-scrollbar-track {
+    background: var(--bg-secondary);
+}
+
+::-webkit-scrollbar-thumb {
+    background: var(--border-color);
+}
+
+::-webkit-scrollbar-thumb:hover {
+    background: var(--accent-primary);
 }
