@@ -872,17 +872,31 @@ class LiveInterviewUI {
             if (!metadata.forceFinalize && this.currentStreamingContent && metadata.fullAnswer) {
                 const filteredAnswer = this.filterThinkingContent(metadata.fullAnswer);
                 
-                // Get the markdown processor from streaming module
+                // Process content with safe markdown handling
                 let finalContent;
-                if (this.streaming && this.streaming.getMarkdownProcessor) {
-                    const markdownProcessor = this.streaming.getMarkdownProcessor();
-                    finalContent = markdownProcessor.process(filteredAnswer);
-                } else {
-                    // Fallback to simple HTML escaping
-                    finalContent = filteredAnswer.replace(/&/g, '&amp;')
-                                                 .replace(/</g, '&lt;')
-                                                 .replace(/>/g, '&gt;')
-                                                 .replace(/\n/g, '<br>');
+                try {
+                    // Try to get the markdown processor from streaming module
+                    if (this.streaming && this.streaming.getMarkdownProcessor) {
+                        const markdownProcessor = this.streaming.getMarkdownProcessor();
+                        if (markdownProcessor && typeof markdownProcessor.process === 'function') {
+                            finalContent = markdownProcessor.process(filteredAnswer);
+                        } else {
+                            throw new Error('Markdown processor not properly initialized');
+                        }
+                    } else {
+                        throw new Error('Streaming module not available');
+                    }
+                } catch (error) {
+                    console.warn('🔍 Markdown processing failed, using fallback:', error.message);
+                    // Fallback to simple HTML escaping with basic markdown
+                    finalContent = filteredAnswer
+                        .replace(/&/g, '&amp;')
+                        .replace(/</g, '&lt;')
+                        .replace(/>/g, '&gt;')
+                        .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')  // Bold
+                        .replace(/\*(.*?)\*/g, '<em>$1</em>')              // Italic
+                        .replace(/`(.*?)`/g, '<code>$1</code>')            // Code
+                        .replace(/\n/g, '<br>');                          // Line breaks
                 }
                 
                 this.currentStreamingContent.innerHTML = finalContent;
@@ -949,6 +963,7 @@ class LiveInterviewUI {
         
         if (metaHTML) {
             element.insertAdjacentHTML('beforeend', metaHTML);
+            console.log('📡 Metadata added:', metadata.preset?.model || 'Unknown model');
         }
     }
 
