@@ -91,7 +91,7 @@ class VisionManager:
                     }],
                     model=self.model_name,
                     temperature=0.4,  # Lower temperature for more focused analysis
-                    max_tokens=8000,
+                    max_tokens=10000,
                     top_p=0.9
                 ),
                 timeout=60.0  # 60 second timeout for vision analysis
@@ -308,93 +308,157 @@ SELECT ... FROM ... JOIN ... ON ...;
 {language_context}
 {sql_instructions}
 
-## Complete Analysis Framework
+## 📋 STRUCTURED ANALYSIS FORMAT
 
-Please provide a **single, comprehensive analysis** that covers ALL information from ALL screenshots:
+Please provide a **comprehensive analysis** with **clear separation** between problem understanding and each approach:
 
-### 🎯 **1. Complete Problem Understanding**
-- **Full Problem Statement**: Consolidate all information from all screenshots
-- **Input/Output Specifications**: Complete format from all sources
-- **All Constraints**: Every constraint mentioned across screenshots
-- **Edge Cases**: Comprehensive list from all sources
-- **Additional Context**: Any hints, examples, or notes from any screenshot
+---
 
-### Summary of what you understand from the screenshots
+# 🎯 PROBLEM UNDERSTANDING & ANALYSIS
 
-### 🧠 **2. Multiple Solution Approaches**
-Provide **TWO DISTINCT APPROACHES** with complete analysis:
+## 📖 Complete Problem Statement
+Consolidate ALL information from ALL screenshots into one clear problem description:
+- **What the problem is asking:** Clear restatement in simple terms
+- **Input format:** Exact specifications from all sources
+- **Output format:** Expected result structure
+- **All constraints:** Every limitation mentioned across screenshots
+- **Examples provided:** All input/output examples from screenshots
 
-#### **Approach 1: [Name the approach]**
-- **Algorithm**: Detailed explanation
-- **Intuition**: Why this works
-- **Time Complexity**: With detailed analysis
-- **Space Complexity**: With memory breakdown
-- **Advantages**: When to use this approach
+## 🔍 Key Insights & Edge Cases
+- **Core challenge:** The main algorithmic/technical difficulty
+- **Edge cases to consider:** Boundary conditions and special scenarios
+- **Potential gotchas:** Common mistakes or tricky aspects
+- **Problem category:** What type of algorithm/data structure problem this is
 
-#### **Approach 2: [Name the alternative approach]** 
-- **Algorithm**: Different strategy/technique
-- **Intuition**: Alternative way of thinking
-- **Time Complexity**: Compare with first approach
-- **Space Complexity**: Compare memory usage  
-- **Advantages**: When this approach is better
+---
+## Give best 2 approaches to solve the problem and it should be commonly used in interviews.
 
-### 💻 **3. Complete Implementations**
+# 🚀 APPROACH 1: [NAME THE FIRST APPROACH]
 
-#### **Solution 1 Implementation ({primary_language})**
+## 💡 Strategy Overview
+- **Algorithm choice:** What algorithm/technique we're using
+- **Key insight:** Why this approach works
+- **High-level plan:** Step-by-step strategy
+
+## ⚙️ Technical Details
+- **Time Complexity:** O(?) with detailed explanation
+- **Space Complexity:** O(?) with memory breakdown
+- **Data structures used:** What and why
+- **Trade-offs:** Advantages of this approach
+
+## 💻 Complete Implementation
+
 ```{primary_language.lower()}
-// Provide complete, production-ready code for Approach 1
+// APPROACH 1: [Brief description]
+// Time: O(?), Space: O(?)
+
+[Provide complete, production-ready code]
 // Include detailed comments explaining each step
 // Use meaningful variable names
-// Handle edge cases properly
+// Handle all edge cases properly
+// Make it interview-ready
 ```
 
-#### **Solution 2 Implementation ({primary_language})**  
+## 🔍 Step-by-Step Walkthrough
+Walk through the algorithm with a concrete example:
+1. **Initial state:** Starting condition
+2. **Step-by-step execution:** How the algorithm progresses
+3. **Key decisions:** Why we make certain choices at each step
+4. **Final result:** How we arrive at the answer
+
+## 🧪 Testing & Validation
+- **Example execution:** Run through provided test cases
+- **Edge case handling:** How the code handles boundary conditions
+- **Correctness proof:** Why this algorithm works
+
+---
+
+# ⚡ APPROACH 2: [NAME THE SECOND APPROACH]
+
+## 💡 Strategy Overview
+- **Different algorithm:** Alternative technique/strategy
+- **Key insight:** Different way of thinking about the problem
+- **High-level plan:** Alternative step-by-step approach
+
+## ⚙️ Technical Details
+- **Time Complexity:** O(?) - compare with Approach 1
+- **Space Complexity:** O(?) - memory trade-offs vs Approach 1
+- **Data structures used:** Different choices and rationale
+- **Trade-offs:** When this approach is better than Approach 1
+
+## 💻 Complete Implementation
+
 ```{primary_language.lower()}
-// Provide complete, production-ready code for Approach 2
-// Show the alternative implementation approach
+// APPROACH 2: [Brief description]
+// Time: O(?), Space: O(?)
+
+[Provide complete, alternative implementation]
+// Show different algorithmic thinking
 // Include comprehensive comments
-// Demonstrate different algorithmic thinking
+// Demonstrate alternative problem-solving approach
+// Handle edge cases with different strategy
 ```
 
-### 🔍 **4. Detailed Walkthroughs**
-- **Approach 1 Walkthrough**: Step-by-step with concrete examples
-- **Approach 2 Walkthrough**: Alternative solution flow
-- **Comparison**: When to choose which approach
+## 🔍 Step-by-Step Walkthrough
+Walk through this alternative approach:
+1. **Different starting point:** How this approach begins differently
+2. **Alternative execution:** Different algorithmic flow
+3. **Key differences:** What makes this approach unique
+4. **Final result:** Different path to the same answer
 
-### 🧪 **5. Comprehensive Testing**
-- **Test Case Analysis**: Cover all examples from screenshots
-- **Edge Case Testing**: Handle boundary conditions
-- **Performance Validation**: Verify complexity claims
-- **Debug Strategies**: Common pitfalls to avoid
+## 🧪 Testing & Validation
+- **Example execution:** Same test cases, different algorithm
+- **Edge case handling:** Alternative strategies for boundary conditions
+- **Performance comparison:** When this outperforms Approach 1
 
-### 🎤 **6. Interview Excellence**
-- **Presentation Strategy**: How to discuss both approaches
-- **Thought Process**: How to arrive at solutions naturally
-- **Time Management**: Which approach to implement first
-- **Follow-up Handling**: Expected interviewer questions
-- **Optimization Discussion**: How to improve solutions
+---
 
-### 🔄 **7. Alternative Techniques**
-- **Other Possible Approaches**: Brief mention of 3rd+ approaches
-- **Advanced Optimizations**: Space/time trade-offs
-- **Related Problem Patterns**: What this prepares you for
+# ⚖️ APPROACH COMPARISON & SELECTION
 
-### 💡 **8. Key Takeaways**
-- **Core Concepts**: Main algorithmic insights
-- **Transferable Skills**: How this applies to other problems
-- **Interview Tips**: Specific advice for this problem type
+## 📊 Head-to-Head Analysis
+| Aspect | Approach 1 | Approach 2 |
+|--------|------------|------------|
+| **Time Complexity** | O(?) | O(?) |
+| **Space Complexity** | O(?) | O(?) |
+| **Code Simplicity** | [Rating] | [Rating] |
+| **Interview Friendliness** | [Assessment] | [Assessment] |
 
-## Analysis Guidelines:
-- **Primary Focus**: Use {primary_language} for main coding solutions
-- **Consolidate Information**: Treat all screenshots as ONE complete problem
-- **Two Complete Solutions**: Provide TWO fully implemented approaches in {primary_language}
-- **Interview-Focused**: Format for real interview scenarios  
+## 🎯 When to Choose Each Approach
+- **Choose Approach 1 when:** Specific scenarios where it excels
+- **Choose Approach 2 when:** Different scenarios where it's better
+- **Interview recommendation:** Which to present first and why
+
+## 🎤 Interview Strategy
+- **Presentation order:** How to discuss both approaches
+- **Time management:** Which to implement if time is limited
+- **Follow-up handling:** Expected interviewer questions
+- **Optimization discussion:** How to improve either solution
+
+---
+
+# 🔧 ADDITIONAL INSIGHTS
+
+## 🌟 Alternative Approaches (Brief)
+- **Approach 3:** Brief mention of other possible techniques
+- **Advanced optimizations:** Potential improvements for either approach
+- **Related patterns:** What other problems this prepares you for
+
+## 💡 Key Takeaways
+- **Core algorithmic insights:** Main concepts to remember
+- **Problem-solving patterns:** Transferable techniques
+- **Interview tips:** Specific advice for this problem type
+
+{sql_instructions if sql_available else ""}
+
+## 🎯 Analysis Guidelines:
+- **Clear Separation**: Each approach gets its own complete section
 - **Comprehensive Coverage**: Include everything from ALL screenshots
-- **Production Quality**: Clean, documented, testable code
+- **Interview-Ready**: Format for real interview presentation
+- **Two Complete Solutions**: Fully implemented, testable code in {primary_language}
 - **Strategic Thinking**: Help understand WHY each approach works
-- **Conditional SQL**: Only analyze database content if actually present in screenshots
+- **Professional Quality**: Clean, documented, production-ready code
 
-Analyze ALL screenshots comprehensively and provide this complete analysis as ONE cohesive response focused on {primary_language} programming solutions!"""
+Analyze ALL screenshots comprehensively and provide this **clearly separated** analysis focused on {primary_language} programming solutions!"""
 
     async def get_all_vision_status(self) -> Dict[str, Dict[str, Any]]:
         """Get status of all vision providers"""

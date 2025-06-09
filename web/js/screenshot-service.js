@@ -536,43 +536,82 @@ class ScreenshotService {
             ? `Focus on solutions in: ${this.programmingLanguages.join(', ')}`
             : 'Provide solutions in popular programming languages';
             
-        return `You are an expert coding interview assistant. Analyze the provided screenshot(s) of coding problems and provide comprehensive help.
+        return `You are an expert coding interview assistant. Analyze the provided screenshot(s) of coding problems and provide comprehensive help with CLEAR SEPARATION between problem understanding and solution approaches.
 
-Please provide:
+**IMPORTANT**: Analyze ALL screenshots together as ONE COMPLETE problem.
 
-1. **Problem Understanding**: 
-   - Clearly explain what the problem is asking
-   - Identify key constraints and requirements
-   - Point out any edge cases to consider
+${languageContext}
 
-2. **Approach & Algorithm**:
-   - Explain the optimal approach(es) to solve this problem
-   - Discuss time and space complexity
-   - Compare different approaches if multiple exist
+Please provide a structured analysis with clear sections:
 
-3. **Code Solution**:
-   - ${languageContext}
-   - Provide clean, well-commented code
-   - Include proper variable names and structure
+---
 
-4. **Step-by-Step Explanation**:
-   - Walk through the solution logic
-   - Explain key insights and techniques used
+# 🎯 PROBLEM UNDERSTANDING & ANALYSIS
 
-5. **Test Cases & Examples**:
-   - Show how the solution works with examples
-   - Include edge cases if relevant
+## 📖 Complete Problem Statement
+- **What the problem is asking:** Clear restatement from all screenshots
+- **Input/Output format:** Complete specifications
+- **All constraints:** Every constraint mentioned
+- **Examples provided:** All test cases and examples
 
-6. **Alternative Approaches**:
-   - Mention other ways to solve this problem
-   - Discuss trade-offs between different approaches
+## 🔍 Key Insights
+- **Core challenge:** Main algorithmic difficulty
+- **Edge cases:** Boundary conditions to consider
+- **Problem type:** What category of algorithm/data structure
 
-7. **Interview Tips**:
-   - How to communicate this solution in an interview
-   - Common mistakes to avoid
-   - Follow-up questions the interviewer might ask
+---
 
-Focus on being educational and helping understand both the solution and the underlying concepts.`;
+# 🚀 APPROACH 1: [NAME THE FIRST APPROACH]
+
+## 💡 Strategy Overview
+- **Algorithm choice:** What technique we're using
+- **Key insight:** Why this approach works
+- **Time/Space Complexity:** O(?) analysis
+
+## 💻 Complete Implementation
+\`\`\`${this.programmingLanguages[0] || 'java'}
+// APPROACH 1: [Brief description]
+// Complete, production-ready code with comments
+// Handle all edge cases properly
+\`\`\`
+
+## 🔍 Step-by-Step Walkthrough
+Detailed explanation of how this algorithm works with examples.
+
+---
+
+# ⚡ APPROACH 2: [NAME THE ALTERNATIVE APPROACH]
+
+## 💡 Strategy Overview
+- **Different algorithm:** Alternative technique
+- **Key insight:** Different way of thinking
+- **Time/Space Complexity:** O(?) - compare with Approach 1
+
+## 💻 Complete Implementation
+\`\`\`${this.programmingLanguages[0] || 'java'}
+// APPROACH 2: [Brief description]  
+// Alternative implementation showing different thinking
+// Include comprehensive comments
+\`\`\`
+
+## 🔍 Step-by-Step Walkthrough
+Explanation of the alternative approach with examples.
+
+---
+
+# ⚖️ APPROACH COMPARISON
+
+## 📊 Which Approach to Choose
+- **Approach 1 is better when:** Specific scenarios
+- **Approach 2 is better when:** Different scenarios
+- **Interview recommendation:** Which to present first
+
+## 🎤 Interview Strategy
+- **Presentation tips:** How to discuss both approaches
+- **Common follow-ups:** Expected interviewer questions
+- **Time management:** Implementation priority
+
+Focus on being educational and helping understand both the solutions and the underlying concepts with CLEAR SEPARATION between each approach.`;
     }
     
     async sendToVisionAI(prompt, screenshots) {
