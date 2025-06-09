@@ -250,26 +250,63 @@ class VisionService:
     def generate_coding_analysis_prompt(self, languages: List[str] = None) -> str:
         """Generate a comprehensive prompt for coding problem analysis"""
         
+        # Determine primary programming language
+        primary_language = "Java"  # Default fallback
         language_context = ""
-        if languages and len(languages) > 0:
-            primary_language = languages[0]
-            other_languages = languages[1:] if len(languages) > 1 else []
-            
-            language_context = f"**Primary Language**: {primary_language}\n"
-            if other_languages:
-                language_context += f"**Alternative Languages**: {', '.join(other_languages)}\n"
-        else:
-            language_context = "**Languages**: Use Python as primary, but mention alternatives\n"
+        sql_available = False
         
+        if languages and len(languages) > 0:
+            # Filter out SQL to find primary programming language
+            programming_languages = [lang for lang in languages if lang.lower() != 'sql']
+            sql_available = 'sql' in [lang.lower() for lang in languages]
+            
+            if programming_languages:
+                primary_language = programming_languages[0]
+                other_languages = programming_languages[1:] if len(programming_languages) > 1 else []
+                
+                language_context = f"**Primary Language**: {primary_language}\n"
+                if other_languages:
+                    language_context += f"**Alternative Languages**: {', '.join(other_languages)}\n"
+            else:
+                # Only SQL was selected, still use Java for programming
+                language_context = f"**Primary Language**: {primary_language} (default)\n"
+        else:
+            language_context = f"**Primary Language**: {primary_language} (default)\n"
+        
+        # Add conditional SQL support
+        sql_instructions = ""
+        if sql_available:
+            sql_instructions = f"""
+**🗄️ CONDITIONAL SQL ANALYSIS**: If and ONLY if the screenshots contain database-related content (tables, schemas, SQL queries, ER diagrams), provide additional SQL analysis:
+
+### Database Context (Only if detected)
+- Document any table structures found
+- Note relationships and foreign keys  
+- Provide SQL query solutions alongside the main programming solution
+
+### SQL Solutions (Only if database content present) - give top 3 optimized solutions starting from most optimized.
+```sql
+-- SQL approach 1: [Brief description]
+SELECT ... FROM ... WHERE ...;
+
+-- SQL approach 2: [Alternative approach]  
+SELECT ... FROM ... JOIN ... ON ...;
+```
+
+---
+"""
+
         return f"""You are an expert coding interview assistant and competitive programming mentor. I'm providing you with multiple screenshots that may contain:
 - A coding problem statement
 - Input/output examples  
 - Constraints and requirements
+- Database schemas, tables, or SQL queries (analyze only if present)
 - Additional context or hints
 
-**IMPORTANT**: Analyze ALL screenshots together as ONE COMPLETE problem. If multiple screenshots show the same problem from different angles, consolidate the information. If they show different parts of the same problem, combine them into a comprehensive understanding.
+**IMPORTANT**: Analyze ALL screenshots together as ONE COMPLETE problem. If multiple screenshots show the same problem from different angles, consolidate the information.
 
 {language_context}
+{sql_instructions}
 
 ## Complete Analysis Framework
 
@@ -281,6 +318,8 @@ Please provide a **single, comprehensive analysis** that covers ALL information 
 - **All Constraints**: Every constraint mentioned across screenshots
 - **Edge Cases**: Comprehensive list from all sources
 - **Additional Context**: Any hints, examples, or notes from any screenshot
+
+### Summary of what you understand from the screenshots
 
 ### 🧠 **2. Multiple Solution Approaches**
 Provide **TWO DISTINCT APPROACHES** with complete analysis:
@@ -301,20 +340,20 @@ Provide **TWO DISTINCT APPROACHES** with complete analysis:
 
 ### 💻 **3. Complete Implementations**
 
-#### **Solution 1 Implementation ({primary_language if languages else 'Python'})**
-```{languages[0] if languages else 'python'}
-# Provide complete, production-ready code for Approach 1
-# Include detailed comments explaining each step
-# Use meaningful variable names
-# Handle edge cases properly
+#### **Solution 1 Implementation ({primary_language})**
+```{primary_language.lower()}
+// Provide complete, production-ready code for Approach 1
+// Include detailed comments explaining each step
+// Use meaningful variable names
+// Handle edge cases properly
 ```
 
-#### **Solution 2 Implementation ({primary_language if languages else 'Python'})**  
-```{languages[0] if languages else 'python'}
-# Provide complete, production-ready code for Approach 2
-# Show the alternative implementation approach
-# Include comprehensive comments
-# Demonstrate different algorithmic thinking
+#### **Solution 2 Implementation ({primary_language})**  
+```{primary_language.lower()}
+// Provide complete, production-ready code for Approach 2
+// Show the alternative implementation approach
+// Include comprehensive comments
+// Demonstrate different algorithmic thinking
 ```
 
 ### 🔍 **4. Detailed Walkthroughs**
@@ -346,14 +385,16 @@ Provide **TWO DISTINCT APPROACHES** with complete analysis:
 - **Interview Tips**: Specific advice for this problem type
 
 ## Analysis Guidelines:
+- **Primary Focus**: Use {primary_language} for main coding solutions
 - **Consolidate Information**: Treat all screenshots as ONE complete problem
-- **Two Complete Solutions**: Provide TWO fully implemented approaches
+- **Two Complete Solutions**: Provide TWO fully implemented approaches in {primary_language}
 - **Interview-Focused**: Format for real interview scenarios  
 - **Comprehensive Coverage**: Include everything from ALL screenshots
 - **Production Quality**: Clean, documented, testable code
 - **Strategic Thinking**: Help understand WHY each approach works
+- **Conditional SQL**: Only analyze database content if actually present in screenshots
 
-Analyze ALL screenshots comprehensively and provide this complete analysis as ONE cohesive response!"""
+Analyze ALL screenshots comprehensively and provide this complete analysis as ONE cohesive response focused on {primary_language} programming solutions!"""
 
     async def get_all_vision_status(self) -> Dict[str, Dict[str, Any]]:
         """Get status of all vision providers"""

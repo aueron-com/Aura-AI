@@ -720,12 +720,17 @@ class WindowManager:
             """Toggle universal mute/pause (Alt+U)"""
             self.send_audio_command("toggle_universal_mute")
 
+        def on_reset_screenshot_queue():
+            """Reset/clear screenshot queue (Alt+R)"""
+            self.send_vision_command("reset_screenshot_queue")
+
         hotkey_map = {
             '<alt>+x': on_toggle_ghost,
             '<alt>+z': on_hide_show,
             '<alt>+v': on_toggle_vision_mode,  # Toggle vision mode
             '<alt>+s': on_capture_screenshot,  # Capture screenshot (replaces screen share hide)
             '<alt>+p': on_process_screenshots, # Process screenshots
+            '<alt>+r': on_reset_screenshot_queue, # Reset screenshot queue
             '<alt>+q': on_switch_primary,      # Switch to primary preset
             '<alt>+w': on_switch_secondary,    # Switch to secondary preset  
             '<alt>+e': on_auto_select,         # Auto-select best preset
@@ -820,6 +825,7 @@ class WindowManager:
         print("   Alt+V: Toggle vision mode")
         print("   Alt+S: Capture screenshot")
         print("   Alt+P: Process screenshots with AI")
+        print("   Alt+R: Reset screenshot queue")
         print("   Alt+Q: Switch to primary AI preset")
         print("   Alt+W: Switch to secondary AI preset")
         print("   Alt+E: Auto-select best AI preset")

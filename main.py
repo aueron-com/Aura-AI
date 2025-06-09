@@ -135,6 +135,8 @@ class GlobalCommandMonitor:
                 self._execute_browser_command('if (window.captureScreenshot) { window.captureScreenshot(); } else { console.warn("captureScreenshot not available"); }')
             elif command == 'process_screenshots':
                 self._execute_browser_command('if (window.processScreenshots) { window.processScreenshots(); } else { console.warn("processScreenshots not available"); }')
+            elif command == 'reset_screenshot_queue':
+                self._execute_browser_command('if (window.resetScreenshotQueue) { window.resetScreenshotQueue(); } else { console.warn("resetScreenshotQueue not available"); }')
             elif command == 'switch_preset':
                 preset_key = command_data.get('preset_key', 'primary')
                 self._execute_browser_command(f'if (window.switchPreset) {{ window.switchPreset("{preset_key}"); }} else {{ console.warn("switchPreset not available"); }}')

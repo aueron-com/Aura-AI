@@ -929,10 +929,40 @@ async function processScreenshots() {
     return await screenshotService.processQueue();
 }
 
+async function resetScreenshotQueue() {
+    console.log('🎮 resetScreenshotQueue called (could be from global hotkey)');
+    
+    // Check if we're in interview mode
+    if (!isLiveInterviewActive()) {
+        console.warn('⚠️ Screenshot queue reset only available during live interview');
+        if (window.presetManager) {
+            presetManager.showErrorNotification('Start the interview first before resetting screenshot queue');
+        } else {
+            alert('Please start the interview before resetting screenshot queue');
+        }
+        return false;
+    }
+    
+    if (!appState.visionMode.isActive) {
+        console.warn('⚠️ Screenshot queue can only be reset in vision mode - use Alt+V to enter vision mode first');
+        if (window.presetManager) {
+            presetManager.showErrorNotification('Enter vision mode first (Alt+V) before resetting screenshot queue');
+        } else {
+            alert('Enter vision mode first (Alt+V) before resetting screenshot queue');
+        }
+        return false;
+    }
+    
+    console.log('🗑️ Resetting screenshot queue via global hotkey');
+    screenshotService.clearQueue();
+    return true;
+}
+
 // Make vision functions globally accessible
 window.toggleVisionMode = toggleVisionMode;
 window.captureScreenshot = captureScreenshot;
 window.processScreenshots = processScreenshots;
+window.resetScreenshotQueue = resetScreenshotQueue;
 window.sendSocketMessage = sendSocketMessage;
 
 // Make transparency function globally accessible
