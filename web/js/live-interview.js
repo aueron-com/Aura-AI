@@ -367,8 +367,8 @@ class LiveInterviewUI {
         }
     }
 
-    // Add AI response
-    addAIResponse(response) {
+    // Add AI response (legacy method)
+    addAIResponse(response, metadata = {}) {
         this.currentAIElement = this.createMessageElement(response, 'ai-response');
         this.conversationStream.appendChild(this.currentAIElement);
 
@@ -376,6 +376,9 @@ class LiveInterviewUI {
         this.setScrollMode('ai_streaming', this.currentAIElement);
 
         this.startStreaming(this.currentAIElement, response, true, () => {
+            // Add metadata after streaming completes
+            this.addResponseMetadata(this.currentAIElement, metadata);
+            
             // On completion, stay in current position - don't force scroll
             // Only set to live_bottom if user is already at bottom
             if (this.isUserNearBottom()) {
@@ -620,6 +623,7 @@ class LiveInterviewUI {
                     color: #3b82f6;
                     font-weight: 500;
                     animation: pulse 1.5s ease-in-out infinite;
+                    cursor: default !important;
                 }
                 
                 @keyframes pulse {
@@ -627,30 +631,51 @@ class LiveInterviewUI {
                     50% { opacity: 0.5; }
                 }
                 
-                .response-meta {
-                    font-size: 11px;
-                    margin-top: 8px;
-                    padding: 4px 8px;
-                    border-radius: 3px;
-                    opacity: 0.8;
+                /* Fix potential cursor/blinking issues */
+                .streaming-text {
+                    caret-color: transparent !important;
+                    cursor: default !important;
                 }
                 
-                .response-meta.preset-info {
-                    background: rgba(59, 130, 246, 0.1);
-                    color: #3b82f6;
-                    border-left: 2px solid #3b82f6;
+                .streaming-text * {
+                    caret-color: transparent !important;
+                    cursor: default !important;
+                }
+                
+                /* Prevent text selection during streaming */
+                .message.ai-response:not(.complete) .streaming-text {
+                    user-select: none;
+                    -webkit-user-select: none;
+                    -moz-user-select: none;
+                    -ms-user-select: none;
+                }
+                
+                .response-meta {
+                    font-size: 9px;
+                    margin-top: 6px;
+                    padding: 2px 6px;
+                    border-radius: 2px;
+                    opacity: 0.6;
+                    display: inline-block;
+                    margin-right: 6px;
+                }
+                
+                .response-meta.model-info {
+                    background: rgba(99, 102, 241, 0.08);
+                    color: #6366f1;
+                    border: 1px solid rgba(99, 102, 241, 0.2);
                 }
                 
                 .response-meta.fallback-info {
-                    background: rgba(245, 158, 11, 0.1);
+                    background: rgba(245, 158, 11, 0.08);
                     color: #d97706;
-                    border-left: 2px solid #d97706;
+                    border: 1px solid rgba(245, 158, 11, 0.2);
                 }
                 
                 .response-meta.error-info {
-                    background: rgba(239, 68, 68, 0.1);
+                    background: rgba(239, 68, 68, 0.08);
                     color: #dc2626;
-                    border-left: 2px solid #dc2626;
+                    border: 1px solid rgba(239, 68, 68, 0.2);
                 }
             `;
             document.head.appendChild(style);
@@ -787,15 +812,21 @@ class LiveInterviewUI {
     startStreamingAIResponse(metadata = {}) {
         console.log('🚀 Starting real-time AI streaming...');
         
-        // Create AI response element immediately
+        // If there's an existing streaming element, finalize it first
+        if (this.currentStreamingElement) {
+            console.log('📝 Finalizing previous response before starting new one');
+            this.finalizeStreamingResponse({ forceFinalize: true });
+        }
+        
+        // Create NEW AI response element for each response
         this.currentStreamingElement = this.createMessageElement('', 'ai-response');
         this.conversationStream.appendChild(this.currentStreamingElement);
         
         // Get content div for streaming
         this.currentStreamingContent = this.currentStreamingElement.querySelector('.streaming-text');
         
-        // Add streaming indicator
-        this.currentStreamingContent.innerHTML = '<span class="streaming-indicator">🤖💭</span>';
+        // Add streaming indicator (no cursor to avoid blinking issues)
+        this.currentStreamingContent.innerHTML = '<span class="streaming-indicator">🤖 Thinking...</span>';
         
         // Set scroll mode for real-time streaming
         this.setScrollMode('ai_streaming', this.currentStreamingElement);
@@ -804,7 +835,7 @@ class LiveInterviewUI {
         this.hideActivity();
         this.updateEmptyState();
         
-        console.log('✅ Real-time streaming prepared');
+        console.log('✅ Real-time streaming prepared for new response');
     }
 
     // Append streaming chunk immediately
@@ -834,18 +865,34 @@ class LiveInterviewUI {
         console.log('✅ Finalizing real-time streaming...');
         
         if (this.currentStreamingElement) {
-            // Mark as complete
+            // Mark as complete (this will re-enable text selection via CSS)
             this.currentStreamingElement.classList.add('complete');
             
-            // Final processing of content with markdown
-            if (this.currentStreamingContent && metadata.fullAnswer) {
+            // Only process content if not force finalizing and we have full answer
+            if (!metadata.forceFinalize && this.currentStreamingContent && metadata.fullAnswer) {
                 const filteredAnswer = this.filterThinkingContent(metadata.fullAnswer);
-                const finalContent = this.markdownProcessor.process(filteredAnswer);
+                
+                // Get the markdown processor from streaming module
+                let finalContent;
+                if (this.streaming && this.streaming.getMarkdownProcessor) {
+                    const markdownProcessor = this.streaming.getMarkdownProcessor();
+                    finalContent = markdownProcessor.process(filteredAnswer);
+                } else {
+                    // Fallback to simple HTML escaping
+                    finalContent = filteredAnswer.replace(/&/g, '&amp;')
+                                                 .replace(/</g, '&lt;')
+                                                 .replace(/>/g, '&gt;')
+                                                 .replace(/\n/g, '<br>');
+                }
+                
                 this.currentStreamingContent.innerHTML = finalContent;
+            } else if (metadata.forceFinalize) {
+                // For force finalize, just mark as complete with current content
+                console.log('🔄 Force finalizing previous response to start new one');
             }
             
-            // Handle metadata display (preset info, etc.)
-            if (metadata.preset || metadata.fallback || metadata.error) {
+            // Always show metadata for completed responses (unless force finalizing)
+            if (!metadata.forceFinalize) {
                 this.addResponseMetadata(this.currentStreamingElement, metadata);
             }
             
@@ -856,10 +903,16 @@ class LiveInterviewUI {
                 this.setScrollMode('ai_static');
             }
             
-            console.log('🤖 Real-time AI streaming completed');
+            if (metadata.forceFinalize) {
+                console.log('🔄 Previous response force-finalized for new response');
+            } else {
+                console.log('🤖 Real-time AI streaming completed normally');
+            }
+        } else {
+            console.warn('⚠️ No streaming element to finalize');
         }
         
-        // Clear streaming references
+        // Clear streaming references to allow new responses
         this.currentStreamingElement = null;
         this.currentStreamingContent = null;
     }
@@ -870,21 +923,27 @@ class LiveInterviewUI {
         
         let metaHTML = '';
         
-        if (metadata.preset) {
-            metaHTML += `<div class="response-meta preset-info">
-                📡 ${metadata.preset.description || 'AI Assistant'}
+        // Always show model info in minimalistic way
+        if (metadata.preset && metadata.preset.model) {
+            const modelName = metadata.preset.model.length > 25 ? 
+                metadata.preset.model.substring(0, 25) + '...' : 
+                metadata.preset.model;
+            metaHTML += `<div class="response-meta model-info">
+                🧠 ${modelName}
             </div>`;
         }
         
+        // Show fallback info if used
         if (metadata.fallback && metadata.fallback.fallback_used) {
             metaHTML += `<div class="response-meta fallback-info">
-                🔄 Switched to backup provider
+                🔄 Backup used
             </div>`;
         }
         
+        // Show error info if present
         if (metadata.error) {
             metaHTML += `<div class="response-meta error-info">
-                ⚠️ ${metadata.error.error_type || 'Response error'}
+                ⚠️ Error
             </div>`;
         }
         
@@ -914,12 +973,16 @@ class LiveInterviewUI {
         if (this.conversationStream) {
             this.conversationStream.innerHTML = '';
         }
+        
+        // Clear all references to prevent multiple elements
         this.currentInterviewerElement = null;
         this.currentAIElement = null;
         this.currentStreamingElement = null;
         this.currentStreamingContent = null;
         this.isStreaming = false;
+        
         this.updateEmptyState();
+        console.log('🧹 Conversation cleared and all references reset');
     }
 
     // Update empty state class

@@ -90,6 +90,7 @@ class LLMManager:
             if use_streaming:
                 # Streaming API call for real-time responses
                 full_answer = ""
+                streaming_active = True
                 try:
                     async for chunk in await self.client.chat.completions.create(
                         messages=[{"role": "user", "content": prompt}],
@@ -99,12 +100,26 @@ class LLMManager:
                         max_tokens=4000,  # Optimized for speed
                         stream=True       # Enable streaming
                     ):
+                        if not streaming_active:
+                            print("⚠️ Streaming stopped due to callback failure")
+                            break
+                            
                         if chunk.choices[0].delta.content:
                             content_chunk = chunk.choices[0].delta.content
                             full_answer += content_chunk
-                            # Send chunk to callback immediately
+                            # Send chunk to callback immediately and check result
                             if stream_callback:
-                                await stream_callback(content_chunk, "chunk")
+                                try:
+                                    callback_result = await stream_callback(content_chunk, "chunk")
+                                    # If callback returns False, stop streaming
+                                    if callback_result is False:
+                                        print("⚠️ Stream callback returned False, stopping stream")
+                                        streaming_active = False
+                                        break
+                                except Exception as e:
+                                    print(f"⚠️ Stream callback error, stopping stream: {e}")
+                                    streaming_active = False
+                                    break
                 
                     answer = full_answer.strip()
                 except Exception as e:

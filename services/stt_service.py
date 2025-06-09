@@ -183,7 +183,7 @@ class DeepgramManager:
         # Optimized settings for real-time transcription with Nova-3
         options = LiveOptions(
             model="nova-3",  # Updated to Nova-3 for better accuracy
-            language="en-US",
+            language="en",
             smart_format=True,
             encoding="linear16",
             channels=1,

@@ -9,8 +9,17 @@ from services.vision_service import vision_service, verify_vision_provider_conne
 router = APIRouter()
 
 async def send_json(websocket: WebSocket, type: str, payload: dict):
-    """Helper function to send JSON data to the client."""
-    await websocket.send_text(json.dumps({"type": type, "payload": payload}))
+    """Helper function to send JSON data to the client with error handling."""
+    try:
+        if websocket.client_state.name == 'CONNECTED':
+            await websocket.send_text(json.dumps({"type": type, "payload": payload}))
+        else:
+            print(f"⚠️ WebSocket not connected, cannot send {type}")
+            return False
+    except Exception as e:
+        print(f"⚠️ Failed to send {type}: {e}")
+        return False
+    return True
 
 @router.websocket("/ws")
 async def websocket_endpoint(websocket: WebSocket):
@@ -41,25 +50,50 @@ async def websocket_endpoint(websocket: WebSocket):
             
             if multi_llm_manager:
                 try:
+                    # Check if WebSocket is still connected before processing
+                    if websocket.client_state.name != 'CONNECTED':
+                        print("⚠️ WebSocket disconnected, skipping transcript processing")
+                        aggregated_final_transcript = ""
+                        return
+                    
                     # Send AI processing started signal
-                    await send_json(websocket, "ai_processing_started", {
+                    send_success = await send_json(websocket, "ai_processing_started", {
                         "question": aggregated_final_transcript,
                         "timestamp": datetime.now().isoformat()
                     })
                     
-                    # Create streaming callback for real-time response
+                    if not send_success:
+                        print("⚠️ Failed to send processing started signal, aborting")
+                        aggregated_final_transcript = ""
+                        return
+                    
+                    # Create streaming callback for real-time response with error handling
                     async def stream_callback(chunk: str, chunk_type: str):
-                        await send_json(websocket, "ai_answer_chunk", {
-                            "chunk": chunk,
-                            "chunk_type": chunk_type,
-                            "timestamp": datetime.now().isoformat()
-                        })
+                        try:
+                            if websocket.client_state.name == 'CONNECTED':
+                                return await send_json(websocket, "ai_answer_chunk", {
+                                    "chunk": chunk,
+                                    "chunk_type": chunk_type,
+                                    "timestamp": datetime.now().isoformat()
+                                })
+                            else:
+                                print(f"⚠️ WebSocket not connected, skipping chunk: {chunk[:50]}...")
+                                return False  # Signal to stop streaming
+                        except Exception as e:
+                            print(f"⚠️ Stream callback error (continuing): {e}")
+                            return False  # Signal to stop streaming
                     
                     # Get AI answer with streaming
                     answer, result_info = await multi_llm_manager.get_ai_answer(
                         aggregated_final_transcript, 
                         stream_callback
                     )
+                    
+                    # Check connection again before sending final response
+                    if websocket.client_state.name != 'CONNECTED':
+                        print("⚠️ WebSocket disconnected during processing, skipping final response")
+                        aggregated_final_transcript = ""
+                        return
                     
                     # Send final response with metadata
                     response_data = {
@@ -83,17 +117,31 @@ async def websocket_endpoint(websocket: WebSocket):
                             "model": result_info.get("model")
                         }
                     
-                    await send_json(websocket, "ai_answer_complete", response_data)
-                    print(f"🤖 AI STREAMING COMPLETE: {answer[:100]}...")
+                    final_success = await send_json(websocket, "ai_answer_complete", response_data)
+                    if final_success:
+                        print(f"🤖 AI STREAMING COMPLETE: {answer[:100]}...")
+                    else:
+                        print("⚠️ Failed to send final AI response")
                     
+                except WebSocketDisconnect:
+                    print("🔌 Client disconnected during transcript processing")
+                    aggregated_final_transcript = ""
+                    return
                 except Exception as e:
                     print(f"❌ CRITICAL: Error processing transcript: {e}")
-                    await send_json(websocket, "ai_answer_complete", {
-                        "answer": "I'm sorry, there was an error processing your question. Please try again.",
-                        "error_info": {"error_type": "processing_error", "message": str(e)},
-                        "success": False,
-                        "is_final": True
-                    })
+                    # Try to send error response if WebSocket is still connected
+                    if websocket.client_state.name == 'CONNECTED':
+                        try:
+                            await send_json(websocket, "ai_answer_complete", {
+                                "answer": "I'm sorry, there was an error processing your question. Please try again.",
+                                "error_info": {"error_type": "processing_error", "message": str(e)},
+                                "success": False,
+                                "is_final": True
+                            })
+                        except Exception as send_error:
+                            print(f"⚠️ Failed to send error response: {send_error}")
+                    else:
+                        print("⚠️ Cannot send error response - WebSocket disconnected")
             
             # IMPORTANT: Reset the buffer after processing.
             aggregated_final_transcript = ""
@@ -105,7 +153,15 @@ async def websocket_endpoint(websocket: WebSocket):
             if session_state.get("is_universally_muted", False):
                 return
 
-            await send_json(websocket, "transcript_update", data)
+            # Check if WebSocket is still connected before sending updates
+            if websocket.client_state.name != 'CONNECTED':
+                print("⚠️ WebSocket disconnected, stopping transcript processing")
+                return
+
+            send_success = await send_json(websocket, "transcript_update", data)
+            if not send_success:
+                print("⚠️ Failed to send transcript update, connection may be lost")
+                return
 
             transcript = data.get('transcript', '').strip()
             is_final = data.get('is_final', False)
@@ -144,8 +200,20 @@ async def websocket_endpoint(websocket: WebSocket):
 
         except WebSocketDisconnect:
             print("🔌 Client disconnected while sending transcript/answer")
+            # Clear the buffer and stop processing
+            aggregated_final_transcript = ""
+            if silence_timer and not silence_timer.done():
+                silence_timer.cancel()
+            return
         except Exception as e:
             print(f"❌ ERROR: Error in transcript callback: {e}")
+            # Check if it's a connection issue and handle gracefully
+            if "WebSocket" in str(e) or "connection" in str(e).lower():
+                print("🔌 Connection-related error in transcript callback")
+                aggregated_final_transcript = ""
+                if silence_timer and not silence_timer.done():
+                    silence_timer.cancel()
+                return
 
     try:
         # 1. Immediately check the Deepgram key upon connection
@@ -156,7 +224,12 @@ async def websocket_endpoint(websocket: WebSocket):
 
         # 2. Listen for messages from the client
         while True:
-            message = await websocket.receive()
+            try:
+                message = await websocket.receive()
+            except Exception as e:
+                print(f"❌ ERROR: Failed to receive message: {e}")
+                break
+                
             if 'text' in message:
                 data = json.loads(message['text'])
                 if data['type'] == 'start_interview':

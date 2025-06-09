@@ -151,7 +151,9 @@ export class WebSocketHandler {
 
     handleAiAnswer(payload) {
         // Legacy handler for non-streaming responses
-        if (window.liveInterviewUI) {
+        // Only process if we're not already streaming to avoid duplicates
+        if (window.liveInterviewUI && !liveInterviewUI.currentStreamingElement) {
+            console.log('📜 Using legacy AI response handler (no streaming active)');
             const filteredAnswer = this.filterThinkingContent(payload.answer);
             liveInterviewUI.addAIResponse(filteredAnswer, {
                 preset: payload.preset_used,
@@ -159,6 +161,8 @@ export class WebSocketHandler {
                 error: payload.error_info,
                 fallback: payload.fallback_info
             });
+        } else if (liveInterviewUI.currentStreamingElement) {
+            console.log('⚠️ Skipping legacy AI handler - streaming already active');
         }
     }
 
@@ -328,6 +332,12 @@ export class WebSocketHandler {
 
     handleError(payload) {
         console.error("WebSocket error:", payload);
+        
+        // If it's a connection error, try to restart gracefully
+        if (payload.message && (payload.message.includes('WebSocket') || payload.message.includes('connection'))) {
+            console.warn('🔌 Connection-related error detected, consider reconnecting');
+        }
+        
         if (window.presetManager) {
             presetManager.showErrorNotification(payload.message);
         }
