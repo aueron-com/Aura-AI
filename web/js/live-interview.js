@@ -3,6 +3,7 @@ import { devLog, isDev } from './config.js';
 import { LiveStreaming } from './live-streaming.js';
 import { LiveControls } from './live-controls.js';
 import muteManager from './mute-manager.js';
+import { StreamingMarkdownParser } from './streaming-markdown-parser.js';
 
 class LiveInterviewUI {
     constructor() {
@@ -40,6 +41,9 @@ class LiveInterviewUI {
         });
         
         this.controls = new LiveControls();
+        
+        // Initialize real-time markdown parser
+        this.markdownParser = new StreamingMarkdownParser();
     }
 
     // Initialize elements
@@ -677,6 +681,124 @@ class LiveInterviewUI {
                     color: #dc2626;
                     border: 1px solid rgba(239, 68, 68, 0.2);
                 }
+                
+                /* Real-time markdown pending content */
+                .pending-text {
+                    opacity: 0.7;
+                    color: rgba(255, 255, 255, 0.8);
+                    font-family: inherit;
+                }
+                
+                /* Ensure pending elements don't interfere with styling */
+                .pending-text .markdown-header,
+                .pending-text .markdown-list,
+                .pending-text .markdown-paragraph {
+                    animation: none;
+                }
+                
+                /* Code block styling for streaming - Compact & Professional */
+                .code-block-container {
+                    margin: 0.75rem 0;
+                    border-radius: 6px;
+                    overflow: hidden;
+                    background: linear-gradient(135deg, #2d3748 0%, #1a202c 100%);
+                    border: 1px solid rgba(74, 85, 104, 0.4);
+                    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.4);
+                    position: relative;
+                }
+                
+                .code-block-header {
+                    display: flex;
+                    justify-content: space-between;
+                    align-items: center;
+                    padding: 0.3rem 0.6rem;
+                    background: rgba(45, 55, 72, 0.8);
+                    border-bottom: 1px solid rgba(74, 85, 104, 0.3);
+                    min-height: 26px;
+                }
+                
+                .code-language {
+                    font-size: 0.7rem;
+                    color: #a0aec0;
+                    font-weight: 500;
+                    text-transform: uppercase;
+                    letter-spacing: 0.8px;
+                    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+                }
+                
+                .copy-button {
+                    background: rgba(113, 128, 150, 0.08);
+                    border: 1px solid rgba(113, 128, 150, 0.2);
+                    color: #718096;
+                    padding: 0.1rem 0.25rem;
+                    border-radius: 2px;
+                    font-size: 0.55rem;
+                    cursor: pointer;
+                    transition: all 0.15s ease;
+                    font-weight: 400;
+                    display: flex;
+                    align-items: center;
+                    height: 16px;
+                    min-width: 28px;
+                    justify-content: center;
+                    opacity: 0.6;
+                }
+                
+                .copy-button:hover {
+                    background: rgba(113, 128, 150, 0.15);
+                    color: #a0aec0;
+                    border-color: rgba(113, 128, 150, 0.35);
+                    opacity: 0.9;
+                    transform: none;
+                }
+                
+                .copy-button:active {
+                    background: rgba(72, 187, 120, 0.15);
+                    color: #68d391;
+                    border-color: rgba(72, 187, 120, 0.3);
+                    opacity: 1;
+                }
+                
+                .code-block {
+                    margin: 0;
+                    padding: 0.75rem;
+                    background: #1a202c !important;
+                    font-family: 'JetBrains Mono', 'Fira Code', 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+                    font-size: 0.85rem;
+                    line-height: 1.4;
+                    color: #e2e8f0;
+                    overflow-x: auto;
+                    white-space: pre;
+                    border: none;
+                }
+                
+                .code-block code {
+                    color: inherit;
+                    background: none !important;
+                    padding: 0;
+                    border: none;
+                    font-family: inherit;
+                    font-size: inherit;
+                    line-height: inherit;
+                }
+                
+                /* Subtle scroll styling for code blocks */
+                .code-block::-webkit-scrollbar {
+                    height: 8px;
+                }
+                
+                .code-block::-webkit-scrollbar-track {
+                    background: rgba(45, 55, 72, 0.5);
+                }
+                
+                .code-block::-webkit-scrollbar-thumb {
+                    background: rgba(113, 128, 150, 0.3);
+                    border-radius: 4px;
+                }
+                
+                .code-block::-webkit-scrollbar-thumb:hover {
+                    background: rgba(113, 128, 150, 0.5);
+                }
             `;
             document.head.appendChild(style);
         }
@@ -810,13 +932,16 @@ class LiveInterviewUI {
 
     // Start real-time streaming AI response
     startStreamingAIResponse(metadata = {}) {
-        console.log('🚀 Starting real-time AI streaming...');
+        console.log('🚀 Starting real-time AI streaming with markdown parsing...');
         
         // If there's an existing streaming element, finalize it first
         if (this.currentStreamingElement) {
             console.log('📝 Finalizing previous response before starting new one');
             this.finalizeStreamingResponse({ forceFinalize: true });
         }
+        
+        // Reset markdown parser for new response
+        this.markdownParser.reset();
         
         // Create NEW AI response element for each response
         this.currentStreamingElement = this.createMessageElement('', 'ai-response');
@@ -835,10 +960,10 @@ class LiveInterviewUI {
         this.hideActivity();
         this.updateEmptyState();
         
-        console.log('✅ Real-time streaming prepared for new response');
+        console.log('✅ Real-time streaming with markdown parsing prepared for new response');
     }
 
-    // Append streaming chunk immediately
+    // Append streaming chunk with real-time markdown processing
     appendStreamingChunk(chunk) {
         if (!this.currentStreamingElement || !this.currentStreamingContent) {
             console.warn('⚠️ No active streaming element for chunk');
@@ -851,8 +976,11 @@ class LiveInterviewUI {
             indicator.remove();
         }
         
-        // Append chunk immediately (no markdown processing for speed)
-        this.currentStreamingContent.appendChild(document.createTextNode(chunk));
+        // Process chunk through real-time markdown parser
+        const renderedHTML = this.markdownParser.processChunk(chunk);
+        
+        // Update content with rendered HTML
+        this.currentStreamingContent.innerHTML = renderedHTML;
         
         // Auto-scroll if user is near bottom
         if (this.isUserNearBottom()) {
@@ -868,38 +996,12 @@ class LiveInterviewUI {
             // Mark as complete (this will re-enable text selection via CSS)
             this.currentStreamingElement.classList.add('complete');
             
-            // Only process content if not force finalizing and we have full answer
-            if (!metadata.forceFinalize && this.currentStreamingContent && metadata.fullAnswer) {
-                const filteredAnswer = this.filterThinkingContent(metadata.fullAnswer);
-                
-                // Process content with safe markdown handling
-                let finalContent;
-                try {
-                    // Try to get the markdown processor from streaming module
-                    if (this.streaming && this.streaming.getMarkdownProcessor) {
-                        const markdownProcessor = this.streaming.getMarkdownProcessor();
-                        if (markdownProcessor && typeof markdownProcessor.process === 'function') {
-                            finalContent = markdownProcessor.process(filteredAnswer);
-                        } else {
-                            throw new Error('Markdown processor not properly initialized');
-                        }
-                    } else {
-                        throw new Error('Streaming module not available');
-                    }
-                } catch (error) {
-                    console.warn('🔍 Markdown processing failed, using fallback:', error.message);
-                    // Fallback to simple HTML escaping with basic markdown
-                    finalContent = filteredAnswer
-                        .replace(/&/g, '&amp;')
-                        .replace(/</g, '&lt;')
-                        .replace(/>/g, '&gt;')
-                        .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')  // Bold
-                        .replace(/\*(.*?)\*/g, '<em>$1</em>')              // Italic
-                        .replace(/`(.*?)`/g, '<code>$1</code>')            // Code
-                        .replace(/\n/g, '<br>');                          // Line breaks
-                }
-                
+            // Only process content if not force finalizing
+            if (!metadata.forceFinalize && this.currentStreamingContent) {
+                // Finalize the markdown parser to process any remaining content
+                const finalContent = this.markdownParser.finalize();
                 this.currentStreamingContent.innerHTML = finalContent;
+                console.log('📝 Real-time markdown parsing finalized');
             } else if (metadata.forceFinalize) {
                 // For force finalize, just mark as complete with current content
                 console.log('🔄 Force finalizing previous response to start new one');
@@ -995,6 +1097,9 @@ class LiveInterviewUI {
         this.currentStreamingElement = null;
         this.currentStreamingContent = null;
         this.isStreaming = false;
+        
+        // Reset markdown parser
+        this.markdownParser.reset();
         
         this.updateEmptyState();
         console.log('🧹 Conversation cleared and all references reset');
@@ -1234,5 +1339,151 @@ window.enableMarkdown = () => {
     window.setMarkdownEnabled(true);
     console.log('📝 Markdown processing enabled - formatted text');
 };
+
+// Add test function for verifying code block styling
+function testCodeBlockStyling() {
+    const testContent = `
+Here's a minimalistic code block:
+
+\`\`\`python
+def two_sum(nums, target):
+    # Using hash map for O(n) solution
+    seen = {}
+    for i, num in enumerate(nums):
+        complement = target - num
+        if complement in seen:
+            return [seen[complement], i]
+        seen[num] = i
+    return []
+\`\`\`
+
+\`\`\`javascript
+function binarySearch(arr, target) {
+    let left = 0;
+    let right = arr.length - 1;
+    
+    while (left <= right) {
+        const mid = Math.floor((left + right) / 2);
+        if (arr[mid] === target) return mid;
+        if (arr[mid] < target) left = mid + 1;
+        else right = mid - 1;
+    }
+    return -1;
+}
+\`\`\`
+`;
+
+    // Create a test window that more closely matches live interview structure
+    const testWindow = window.open('', 'SpacingFixTest', 'width=900,height=700,scrollbars=yes');
+    testWindow.document.write(`
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <title>Code Block Spacing Fix Test</title>
+            <link rel="stylesheet" href="../css/live-interview.css">
+            <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/prism.min.js"></script>
+            <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-python.min.js"></script>
+            <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-javascript.min.js"></script>
+            <style>
+                body { 
+                    background: #0a0e27; 
+                    color: #e2e8f0; 
+                    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+                    margin: 0;
+                    padding: 0;
+                    height: 100vh;
+                }
+                .live-interview-container {
+                    display: flex;
+                    flex-direction: column;
+                    height: 100vh;
+                    background: linear-gradient(135deg, #0a0e27 0%, #1a1c35 50%, #2a2d47 100%);
+                }
+                .conversation-stream {
+                    flex: 1;
+                    overflow-y: auto;
+                    padding: 2rem;
+                    display: flex;
+                    flex-direction: column;
+                    gap: 1.5rem;
+                }
+                .test-info {
+                    background: rgba(34, 197, 94, 0.1);
+                    border: 1px solid rgba(34, 197, 94, 0.3);
+                    padding: 1rem;
+                    border-radius: 6px;
+                    margin-bottom: 2rem;
+                }
+                .comparison {
+                    display: grid;
+                    grid-template-columns: 1fr 1fr;
+                    gap: 2rem;
+                    margin-top: 2rem;
+                }
+                .comparison-section {
+                    background: rgba(59, 130, 246, 0.1);
+                    border: 1px solid rgba(59, 130, 246, 0.3);
+                    padding: 1rem;
+                    border-radius: 6px;
+                }
+                .comparison h4 {
+                    margin-top: 0;
+                }
+            </style>
+        </head>
+        <body>
+            <div class="live-interview-container">
+                <div class="conversation-stream">
+                    <div class="test-info">
+                        <h3>🔧 Code Block Spacing Fix Test</h3>
+                        <p>Testing minimal spacing and proper container boundaries in live interview context.</p>
+                        <button onclick="window.close()" style="background: #ef4444; color: white; border: none; padding: 0.4rem 0.8rem; border-radius: 4px; cursor: pointer; font-size: 0.8rem; margin-top: 0.5rem;">Close Window</button>
+                    </div>
+                    
+                    <div class="comparison">
+                        <div class="comparison-section">
+                            <h4>🎯 Live Interview Simulation</h4>
+                            <div class="message ai-response">
+                                <div class="label">AI ASSISTANT</div>
+                                <div class="streaming-text" id="live-content"></div>
+                            </div>
+                        </div>
+                        
+                        <div class="comparison-section">
+                            <h4>📏 Spacing Analysis</h4>
+                            <ul style="font-size: 0.9rem; line-height: 1.6;">
+                                <li>Container margins: 0.25rem top/bottom</li>
+                                <li>Header height: 18px max</li>
+                                <li>Copy button: 14×18px micro size</li>
+                                <li>Content padding: 0.5rem</li>
+                                <li>No extra paragraph spacing</li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </body>
+        </html>
+    `);
+
+    // Process the content with streaming parser to match live interview
+    setTimeout(() => {
+        const streamingParser = new window.StreamingMarkdownParser();
+        streamingParser.buffer = testContent;
+        const processedHTML = streamingParser.finalize();
+        
+        testWindow.document.getElementById('live-content').innerHTML = processedHTML;
+        
+        // Apply syntax highlighting
+        if (testWindow.Prism) {
+            testWindow.Prism.highlightAll();
+        }
+        
+        console.log('🔧 Code block spacing fix test created - simulating live interview structure');
+    }, 500);
+}
+
+// Make function available globally for testing
+window.testCodeBlockStyling = testCodeBlockStyling;
 
 export default window.liveInterviewUI; 

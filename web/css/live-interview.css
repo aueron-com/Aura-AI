@@ -295,79 +295,175 @@
 }
 
 /* Code Blocks */
-.message .code-block {
-    margin: 1rem 0;
-    border-radius: 4px;
-    /* REMOVED overflow: hidden to prevent clipping */
-    background: rgba(0, 0, 0, var(--code-transparency));
-    border: 1px solid var(--border-color);
-    backdrop-filter: blur(10px);
+.message .code-block, .code-block-container {
+    margin: 0.75rem 0 !important;
+    border-radius: 6px;
+    background: #1e2128;
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    overflow: hidden;
+    max-width: 100%;
+    word-wrap: break-word;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
 }
 
-.code-header {
-    background: rgba(0, 0, 0, 0.4);
-    padding: 0.5rem 1rem;
-    font-size: 0.8rem;
-    color: var(--text-color);
-    border-bottom: 1px solid var(--border-color);
+/* Control spacing around code blocks - allow vertical margin */
+.message .code-block-container,
+.streaming-text .code-block-container,
+.message .code-block,
+.streaming-text .code-block {
+    margin: 0.5rem 0 !important;
+    padding: 0 !important;
+    border-radius: 4px !important;
+    max-width: 100% !important;
+    overflow-x: hidden !important;
+}
+
+/* Control spacing from parent divs containing code blocks */
+.message div:has(.code-block-container),
+.message div:has(.code-block),
+.streaming-text div:has(.code-block-container),
+.streaming-text div:has(.code-block) {
+    margin: 0 !important;
+    padding: 0 !important;
+    line-height: 1.2 !important;
+    max-width: 100% !important;
+    overflow-x: hidden !important;
+}
+
+/* Override markdown processor spacing */
+.message .markdown-paragraph:has(.code-block-container),
+.message .markdown-paragraph:has(.code-block) {
+    margin: 0 !important;
+    padding: 0 !important;
+}
+
+/* Control spacing from adjacent elements */
+.message * + .code-block-container,
+.message * + .code-block,
+.message .code-block-container + *,
+.message .code-block + * {
+    margin-top: 0.25rem !important;
+    margin-bottom: 0.25rem !important;
+}
+
+/* Nuclear option - remove all possible spacing sources */
+.code-block-container,
+.code-block-container * {
+    box-sizing: border-box !important;
+}
+
+.message .streaming-text > .code-block-container {
+    display: block !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    line-height: 1 !important;
+}
+
+/* Override any inherited spacing from parent elements */
+.message .streaming-text {
+    line-height: 1.6 !important;
+}
+
+.message .streaming-text > * {
+    margin-top: 0 !important;
+    margin-bottom: 0 !important;
+}
+
+/* Specifically target code blocks in streaming text */
+.streaming-text .code-block-container:first-child {
+    margin-top: 0 !important;
+}
+
+.streaming-text .code-block-container:last-child {
+    margin-bottom: 0 !important;
+}
+
+.code-header, .code-block-header {
+    background: rgba(255, 255, 255, 0.02);
+    padding: 0.4rem 1.25rem !important;
+    font-size: 0.65rem;
+    color: rgba(255, 255, 255, 0.5);
+    border-bottom: 1px solid rgba(255, 255, 255, 0.05);
     display: flex;
     justify-content: space-between;
     align-items: center;
-    opacity: 0.8;
-    flex-wrap: nowrap; /* Prevent wrapping */
-    gap: 1rem; /* Add space between elements */
+    flex-wrap: nowrap;
+    gap: 0.4rem;
+    min-height: 28px;
+    max-height: 28px;
+    box-sizing: border-box;
+    overflow: hidden;
 }
 
-.language-tag {
-    background: rgba(255, 255, 255, 0.1);
-    color: var(--text-color);
-    padding: 0.2rem 0.5rem;
-    border-radius: 3px;
-    font-size: 0.7rem;
-    text-transform: uppercase;
-    opacity: 0.7;
-    white-space: nowrap; /* Ensure tag itself doesn't wrap */
-}
-
-.copy-btn {
+.language-tag, .code-language {
     background: none;
-    border: none;
-    color: var(--text-color);
+    color: rgba(255, 255, 255, 0.4);
+    padding: 0;
+    border-radius: 0;
+    font-size: 0.6rem;
+    text-transform: lowercase;
+    opacity: 1;
+    white-space: nowrap;
+    font-weight: 400;
+}
+
+.copy-btn, .copy-button {
+    top:-0.8rem;
+    background: none !important;
+    border: none !important;
+    color: rgba(255, 255, 255, 0.4) !important;
     cursor: pointer;
-    padding: 0.2rem; /* Adjust padding for icon */
-    border-radius: 3px;
-    transition: all 0.3s ease;
-    opacity: 0.6;
-    font-size: 1.1rem; /* Make icon larger */
-    line-height: 1; /* Align icon vertically */
-    display: flex;
+    padding: 0.15rem !important;
+    border-radius: 3px !important;
+    transition: all 0.15s ease;
+    opacity: 0.8 !important;
+    font-size: 0.65rem !important;
+    font-weight: 400;
+    line-height: 1;
+    display: flex !important;
     align-items: center;
     justify-content: center;
+    height: 16px !important;
+    width: 20px !important;
+    min-width: 20px !important;
+    max-width: 20px !important;
 }
 
-.copy-btn:hover {
-    opacity: 1;
-    background: rgba(255, 255, 255, 0.1);
+.copy-btn:hover, .copy-button:hover {
+    opacity: 1 !important;
+    color: rgba(255, 255, 255, 0.7) !important;
+    background: rgba(255, 255, 255, 0.05) !important;
 }
 
-.code-block pre {
-    margin: 0;
-    padding: clamp(0.5rem, 2vw, 1rem);
-    font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
-    font-size: clamp(0.7rem, 2vw, 0.9rem);
+.code-block pre, .code-block-container pre {
+    margin: 0 !important;
+    padding: 1rem 1.25rem !important;
+    font-family: 'JetBrains Mono', 'Fira Code', 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+    font-size: 0.8rem;
     line-height: 1.5;
+    background: transparent !important;
+    color: #e2e8f0;
+    border: none;
     
-    /* Ensure code wraps correctly */
+    /* Ensure code wraps correctly and is responsive */
     white-space: pre-wrap;
     overflow-wrap: break-word;
-    word-break: break-word; /* For compatibility */
+    word-break: break-word;
     max-width: 100%;
-    overflow-x: hidden; /* Prevent any horizontal scrolling */
+    overflow-x: hidden;
+    box-sizing: border-box;
+    
+    /* Better responsive wrapping */
+    word-spacing: normal;
+    letter-spacing: normal;
 }
 
-.code-block pre code {
-    background: none;
+.code-block pre code, .code-block-container pre code {
+    background: none !important;
     color: inherit;
+    font-family: inherit;
+    font-size: inherit;
+    line-height: inherit;
     /* Ensure wrapping on the code tag itself */
     white-space: pre-wrap;
     overflow-wrap: break-word;
@@ -466,14 +562,29 @@
         font-size: 0.8rem;
     }
     
-    .code-header {
-        padding: 0.4rem 0.8rem;
-        font-size: 0.7rem;
+    .code-header, .code-block-header {
+        padding: 0.2rem 0.4rem;
+        font-size: 0.6rem;
+        min-height: 20px;
+        max-height: 20px;
     }
     
-    .language-tag {
-        font-size: 0.6rem;
-        padding: 0.1rem 0.3rem;
+    .code-block pre, .code-block-container pre {
+        padding: 0.75rem 1rem !important;
+        font-size: 0.75rem;
+        line-height: 1.4;
+    }
+    
+    .copy-btn, .copy-button {
+        height: 14px !important;
+        width: 18px !important;
+        min-width: 18px !important;
+        max-width: 18px !important;
+        font-size: 0.6rem !important;
+    }
+    
+    .language-tag, .code-language {
+        font-size: 0.55rem;
     }
 }
 

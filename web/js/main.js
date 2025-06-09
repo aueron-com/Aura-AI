@@ -16,6 +16,7 @@ import liveInterviewUI from './live-interview.js';
 import hotkeyManager from './hotkeys.js';
 import presetManager from './preset-manager.js';
 import screenshotService from './screenshot-service.js';
+import { testStreamingMarkdown, testSampleMarkdown } from './streaming-markdown-demo.js';
 
 // Initialize managers
 const stateManager = new StateManager();
@@ -211,6 +212,38 @@ window.addEventListener('DOMContentLoaded', async () => {
 function setupDeveloperShortcuts() {
     
     devLog('🛠️ Developer shortcuts enabled');
+    
+    // Console helper functions
+    if (isDev) {
+        console.log(`
+🧪 === AURA DEVELOPER TOOLS ===
+Available testing functions:
+• testSampleMarkdown() - Test with sample markdown content  
+• testStreamingMarkdown() - Test with comprehensive scenarios
+• closeAllTestWindows() - Close all test windows manually
+• closeTestWindow('id') - Close specific test window
+• autofillForTesting() - Auto-fill onboarding form
+• Ctrl+J - Auto-fill form shortcut
+
+📝 Real-time Markdown Testing:
+The new hybrid streaming markdown parser integrates with the existing 
+MarkdownProcessor to provide real-time rendering that's compatible 
+with code blocks, syntax highlighting, and all existing features.
+
+🕒 Auto-Close Feature:
+Test windows now auto-close after 10 seconds with countdown display.
+Manual close (× button) cancels auto-close timer.
+
+Try: testSampleMarkdown()
+
+🔧 Code Block Fix Applied:
+• Fixed missing code blocks in streaming responses
+• Added proper syntax highlighting with Prism.js
+• Integrated with existing MarkdownProcessor system
+• Real-time code block rendering during streaming
+        `);
+    }
+    
     window.addEventListener('keydown', (e) => {
         if (e.ctrlKey && e.key === 'j') {
             e.preventDefault();
@@ -283,6 +316,8 @@ window.toggleUniversalMute = toggleUniversalMute;
 window.endInterview = endInterview;
 window.getScreenVideoTrack = getScreenVideoTrack;
 window.isScreenSharingAvailable = isScreenSharingAvailable;
+window.testStreamingMarkdown = testStreamingMarkdown;
+window.testSampleMarkdown = testSampleMarkdown;
 
 // Export managers for other modules
 window.appState = stateManager.getState();
