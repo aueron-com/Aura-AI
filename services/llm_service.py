@@ -91,9 +91,9 @@ class LLMManager:
                     model=self.model_name,
                     temperature=0.5,
                     top_p=0.8,
-                    max_tokens=4000  # Set reasonable limit
+                    max_tokens=5000  # Set reasonable limit
                 ),
-                timeout=30.0  # 30 second timeout
+                timeout=35.0  # 30 second timeout
             )
             
             answer = chat_completion.choices[0].message.content.strip()
