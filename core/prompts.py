@@ -142,8 +142,8 @@ GENERAL APPROACH:
 - Write as if you ARE the candidate speaking directly to the interviewer
 
 📝 MANDATORY STRUCTURED MARKDOWN FORMATTING:
-You MUST format your response using proper markdown structure. Choose the appropriate template based on question type:
-
+- You MUST format your response using proper markdown structure. Choose the appropriate template based on question type:
+- IMPORTANT: Do not include ```markdown``` in your response anywhere as it breaks the formatting.
 ═══════════════════════════════════════════════════════════════════════════════════════
 
 🔧 **FOR CODING/ALGORITHM/DSA QUESTIONS:**
