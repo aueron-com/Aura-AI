@@ -88,15 +88,10 @@ export async function startAudioProcessing(micId, onAudioData) {
             if (muteManager.isMicrophoneMuted()) {
                 // When microphone is muted, all audio is from the interviewer.
                 speakerHint = 'system';
-                if (audioProcessingCounter % 100 === 0) {
-                    devLog(`🔇 Mic Muted: All audio treated as interviewer (mic: ${micLevel.toFixed(3)}, sys: ${systemLevel.toFixed(3)})`);
-                }
+                // Logging removed to reduce console noise.
             } else {
                 // When unmuted, distinguish based on volume.
                 speakerHint = systemLevel > micLevel * 2 ? 'system' : 'microphone';
-                if (audioProcessingCounter % 100 === 0) {
-                    devLog(`🎤 Unmuted: Speaker is ${speakerHint} (mic: ${micLevel.toFixed(3)}, sys: ${systemLevel.toFixed(3)})`);
-                }
             }
 
             audioProcessingCounter++;

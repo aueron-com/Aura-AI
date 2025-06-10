@@ -24,6 +24,10 @@ export class ProviderManager {
         };
         
         this.checks = {
+            micPermission: document.getElementById('check-mic-permission'),
+            micSelection: document.getElementById('check-mic-selection'),
+            backend: document.getElementById('check-backend'),
+            deepgram: document.getElementById('check-deepgram'),
             aiProvider: document.getElementById('check-ai-provider'),
             aiSecondaryProvider: document.getElementById('check-ai-secondary-provider'),
             visionProvider: document.getElementById('check-vision-provider'),
@@ -313,7 +317,15 @@ export class ProviderManager {
             devLog('No secondary vision provider selected, skipping verification');
         }
 
+        // This is a new, separate step to verify the Deepgram key.
+        this.verifyDeepgram();
+        
         await this.verifyAiProviders();
+    }
+
+    verifyDeepgram() {
+        devLog("➡️ [Pre-Flight] Requesting Deepgram API verification...");
+        this.webSocketHandler.sendMessage('verify_deepgram', {});
     }
 
     async verifyAiProviders() {
@@ -337,11 +349,14 @@ export class ProviderManager {
             await this.verifyVisionProvider(state.selectedSecondaryVisionProvider, this.checks.visionSecondaryProvider, 'Secondary Vision');
         }
         
+        // This was the missing piece. After all provider checks are complete,
+        // we must check if all systems are green to enable the start button.
         this.webSocketHandler.checkAllSystemsGo();
     }
 
     async verifyProvider(providerConfig, checkElement, providerType) {
         const { name, model } = providerConfig;
+        devLog(`➡️ [Pre-Flight] Verifying ${providerType} provider: ${name} (${model})`);
         this.webSocketHandler.updateCheckStatus(checkElement, 'pending', `Checking ${providerType} ${name}...`);
         
         try {
@@ -355,10 +370,10 @@ export class ProviderManager {
             
             if (result.success) {
                 this.webSocketHandler.updateCheckStatus(checkElement, 'success', `${providerType} ${name} (${model}) OK`);
-                devLog(`✅ ${providerType} provider verification successful:`, { name, model });
+                devLog(`✅ [FRONTEND] Received and processed successful verification for ${providerType} provider: ${name}`);
             } else {
                 this.webSocketHandler.updateCheckStatus(checkElement, 'error', `${providerType} ${name} Connection Failed`);
-                console.error(`❌ ${providerType} provider verification failed:`, { name, model });
+                devLog(`❌ [FRONTEND] Received and processed failed verification for ${providerType} provider: ${name}`);
             }
         } catch (error) {
             this.webSocketHandler.updateCheckStatus(checkElement, 'error', `${providerType} Provider Check Failed`);
@@ -366,8 +381,25 @@ export class ProviderManager {
         }
     }
 
+    handleApiKeyStatus({ service, valid }) {
+        devLog(`⬅️ [ProviderManager] Handling 'api_key_status' for ${service}. Valid: ${valid}`);
+        
+        if (service === 'deepgram') {
+            const checkElement = this.checks.deepgram;
+            const serviceName = "Deepgram";
+            if (valid) {
+                this.webSocketHandler.updateCheckStatus(checkElement, 'success', `${serviceName} API OK`);
+            } else {
+                this.webSocketHandler.updateCheckStatus(checkElement, 'error', `${serviceName} API Key Invalid`);
+            }
+            // Crucially, check all systems *after* the status has been updated.
+            this.webSocketHandler.checkAllSystemsGo();
+        }
+    }
+
     async verifyVisionProvider(providerConfig, checkElement, providerType) {
         const { name, model } = providerConfig;
+        devLog(`➡️ [Pre-Flight] Verifying ${providerType} provider: ${name} (${model})`);
         this.webSocketHandler.updateCheckStatus(checkElement, 'pending', `Checking ${providerType} ${name}...`);
         
         try {
@@ -381,14 +413,67 @@ export class ProviderManager {
             
             if (result.success) {
                 this.webSocketHandler.updateCheckStatus(checkElement, 'success', `${providerType} ${name} (${model}) OK`);
-                devLog(`✅ ${providerType} provider verification successful:`, { name, model });
+                devLog(`✅ [FRONTEND] Received and processed successful verification for ${providerType} vision provider: ${name}`);
             } else {
                 this.webSocketHandler.updateCheckStatus(checkElement, 'error', `${providerType} ${name} Connection Failed`);
-                console.error(`❌ ${providerType} provider verification failed:`, { name, model });
+                devLog(`❌ [FRONTEND] Received and processed failed verification for ${providerType} vision provider: ${name}`);
             }
         } catch (error) {
             this.webSocketHandler.updateCheckStatus(checkElement, 'error', `${providerType} Provider Check Failed`);
             console.error(`❌ ${providerType} provider check error:`, error);
         }
     }
-} 
+
+    checkAllSystemsGo() {
+        // Check all required systems
+        const requiredChecks = [
+            this.checks.micPermission,
+            this.checks.micSelection,
+            this.checks.backend,
+            this.checks.deepgram,
+            this.checks.aiProvider
+        ];
+
+        // Add optional checks that are visible (selected by user)
+        const optionalChecks = [
+            this.checks.aiSecondaryProvider,
+            this.checks.visionProvider,
+            this.checks.visionSecondaryProvider
+        ];
+
+        // Filter optional checks to only include visible ones
+        const visibleOptionalChecks = optionalChecks.filter(check =>
+            check && check.style.display !== 'none'
+        );
+
+        const allChecks = [...requiredChecks, ...visibleOptionalChecks];
+
+        // Check if all systems are green
+        const allSystemsGo = allChecks.every(check => {
+            if (!check) return false;
+            const indicator = check.querySelector('.indicator');
+            return indicator && indicator.textContent === '🟢';
+        });
+
+        // Enable/disable start button
+        const startButton = document.getElementById('start-interview-button');
+        if (startButton) {
+            startButton.disabled = !allSystemsGo;
+            devLog(`[checkAllSystemsGo] Start button ${allSystemsGo ? 'ENABLED' : 'DISABLED'}`);
+            
+            if (allSystemsGo) {
+                devLog('🚀 All systems are GO! Interview can start.');
+            } else {
+                // Log which checks are failing for debugging
+                const failingChecks = allChecks.filter(check => {
+                    if (!check) return true;
+                    const indicator = check.querySelector('.indicator');
+                    return !indicator || indicator.textContent !== '🟢';
+                }).map(check => check ? check.id : 'null');
+                devLog(`❌ Systems not ready. Failing checks: ${failingChecks.join(', ')}`);
+            }
+        }
+
+        return allSystemsGo;
+    }
+}

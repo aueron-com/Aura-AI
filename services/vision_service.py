@@ -9,11 +9,12 @@ from core.config import settings
 class VisionManager:
     """Vision AI Manager for screenshot analysis and code problem solving"""
     
-    def __init__(self, provider_name: str, base_url: str, api_key: str, model_name: str):
+    def __init__(self, provider_name: str, base_url: str, api_key: str, model_name: str, request_params: Optional[Dict[str, Any]] = None):
         self.provider_name = provider_name
         self.model_name = model_name
         self.base_url = base_url
         self.api_key = api_key
+        self.request_params = request_params or {}
         self.is_healthy = True
         self.last_error = None
         self.error_count = 0
@@ -82,19 +83,41 @@ class VisionManager:
             
             print(f"🔍 Analyzing {len(screenshots)} screenshots with {self.provider_name}-{self.model_name}")
             
+            # Base parameters for the API call
+            api_params = {
+                "messages": [{
+                    "role": "user",
+                    "content": content
+                }],
+                "model": self.model_name,
+                "temperature": 0.45,  # Lower temperature for more focused analysis
+                "max_tokens": 8100,
+                "top_p": 0.95
+            }
+
+            # Add provider-specific routing if available
+            if self.request_params:
+                print(f"INFO: Using custom request params for {self.provider_name} vision: {self.request_params}")
+                
+                # For OpenRouter, use extra_body to pass provider routing
+                if self.provider_name == "OpenRouter" and "provider" in self.request_params:
+                    api_params["extra_body"] = self.request_params
+                    print(f"INFO: Using extra_body for OpenRouter vision provider routing")
+                else:
+                    # For other providers, add parameters directly
+                    api_params.update(self.request_params)
+
+            # Debug logging for API parameters
+            print(f"DEBUG: Final vision API params for {self.provider_name}:")
+            print(f"  - Model: {api_params.get('model')}")
+            print(f"  - Has extra_body: {'extra_body' in api_params}")
+            if 'extra_body' in api_params:
+                print(f"  - Extra body: {api_params['extra_body']}")
+            
             # Make API call with timeout
             chat_completion = await asyncio.wait_for(
-                self.client.chat.completions.create(
-                    messages=[{
-                        "role": "user", 
-                        "content": content
-                    }],
-                    model=self.model_name,
-                    temperature=0.45,  # Lower temperature for more focused analysis
-                    max_tokens=8100,
-                    top_p=0.95
-                ),
-                timeout=75.0  # 60 second timeout for vision analysis
+                self.client.chat.completions.create(**api_params),
+                timeout=75.0  # 75 second timeout for vision analysis
             )
             
             analysis = chat_completion.choices[0].message.content.strip()
@@ -214,11 +237,15 @@ class VisionService:
 
             for provider_config in providers_config:
                 if provider_config["name"] == provider_name:
+                    # Find the model configuration, supporting both string and dict formats
+                    model_config = self._get_vision_model_config(provider_config, model_name)
+                    
                     manager = VisionManager(
                         provider_name=provider_name,
                         base_url=provider_config["baseURL"],
                         api_key=provider_config["apiKey"],
-                        model_name=model_name
+                        model_name=model_config["modelName"],
+                        request_params=model_config.get("requestParams")
                     )
                     if self.context_manager:
                         manager.set_context_manager(self.context_manager)
@@ -227,6 +254,15 @@ class VisionService:
         except Exception as e:
             print(f"❌ Failed to create vision manager for {provider_name}: {e}")
             return None
+
+    def _get_vision_model_config(self, provider_config: Dict[str, Any], model_identifier: str) -> Dict[str, Any]:
+        """Finds vision model configuration, supporting both string and dict formats."""
+        for model in provider_config.get("visionModels", []):
+            if isinstance(model, str) and model == model_identifier:
+                return {"modelName": model}  # Normalize to dict
+            if isinstance(model, dict) and model.get("modelName") == model_identifier:
+                return model
+        raise ValueError(f"Vision model '{model_identifier}' not found for provider '{provider_config['name']}'")
     
     def get_vision_manager(self, provider_name: str, model_name: str) -> Optional[VisionManager]:
         """Get a specific vision manager, checking active providers first."""
@@ -419,11 +455,19 @@ A.  **Problem Understanding:**
 vision_service = VisionService()
 
 # Verification function
-async def verify_vision_provider_connection(base_url: str, api_key: str, model_name: str) -> bool:
-    """Verify a vision provider connection"""
+async def verify_vision_provider_connection(base_url: str, api_key: str, model_name: str, request_params: Optional[Dict[str, Any]] = None) -> bool:
+    """Verify a vision provider connection - simplified to avoid complex vision tests"""
     try:
         temp_client = AsyncOpenAI(base_url=base_url, api_key=api_key)
+        
+        # Just test basic connectivity with models.list() - don't do complex vision tests
         await asyncio.wait_for(temp_client.models.list(), timeout=10.0)
+        
+        # For OpenRouter, note that we have provider routing but skip complex testing
+        if request_params and "provider" in request_params:
+            print(f"INFO: OpenRouter vision model {model_name} configured with provider routing: {request_params}")
+            print(f"INFO: Skipping complex vision test - basic connectivity verified")
+        
         print(f"✅ Vision connection to {base_url} with model {model_name} is valid.")
         return True
     except asyncio.TimeoutError:
@@ -434,4 +478,4 @@ async def verify_vision_provider_connection(base_url: str, api_key: str, model_n
         return False
     except Exception as e:
         print(f"❌ ERROR: Vision provider verification error for {base_url}: {e}")
-        return False 
+        return False

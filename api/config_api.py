@@ -105,13 +105,26 @@ async def verify_vision_ai_provider(request: ProviderVerifyRequest):
         if not provider_config.get("supportsVision", False):
             raise HTTPException(status_code=400, detail=f"Provider '{request.name}' does not support vision.")
 
-        if request.model not in provider_config.get("visionModels", []):
+        # Check if model exists in visionModels and extract model config (handle both string and object formats)
+        vision_models = provider_config.get("visionModels", [])
+        model_config = None
+        
+        for vision_model in vision_models:
+            if isinstance(vision_model, str) and vision_model == request.model:
+                model_config = {"modelName": vision_model}  # Normalize to dict
+                break
+            elif isinstance(vision_model, dict) and vision_model.get("modelName") == request.model:
+                model_config = vision_model
+                break
+        
+        if not model_config:
             raise HTTPException(status_code=400, detail=f"Model '{request.model}' is not a vision model for '{request.name}'.")
 
         is_valid = await verify_vision_provider_connection(
             base_url=provider_config.get("baseURL"),
             api_key=provider_config.get("apiKey"),
-            model_name=request.model
+            model_name=request.model,
+            request_params=model_config.get("requestParams")
         )
         return {"success": is_valid}
 

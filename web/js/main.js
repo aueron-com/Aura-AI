@@ -23,6 +23,11 @@ const stateManager = new StateManager();
 const webSocketHandler = new WebSocketHandler(stateManager);
 const providerManager = new ProviderManager(stateManager, webSocketHandler);
 
+// --- Dependency Injection ---
+// Wire the managers together to avoid race conditions and reliance on globals.
+// This ensures the WebSocketHandler has a direct reference to the ProviderManager.
+webSocketHandler.setProviderManager(providerManager);
+
 // --- DOM Elements ---
 const views = {
     onboarding: document.getElementById('onboarding-view'),
@@ -50,25 +55,40 @@ function handleOnboarding() {
 }
 
 async function runPreFlightChecks() {
-    // 1. Microphone Check
+    // --- 1. Microphone Check ---
+    // First, ensure we have microphone permissions as this is a prerequisite.
     const micPermissionCheck = document.getElementById('check-mic-permission');
     const micSelectionCheck = document.getElementById('check-mic-selection');
     
-    webSocketHandler.updateCheckStatus(micPermissionCheck, 'pending', 'Requesting Microphone...');
+    providerManager.webSocketHandler.updateCheckStatus(micPermissionCheck, 'pending', 'Requesting Microphone...');
     const micPermission = await setupMicrophone();
     if (micPermission) {
-        webSocketHandler.updateCheckStatus(micPermissionCheck, 'success', 'Microphone Permission OK');
-        webSocketHandler.updateCheckStatus(micSelectionCheck, 'success', 'Microphone Selection Ready');
+        providerManager.webSocketHandler.updateCheckStatus(micPermissionCheck, 'success', 'Microphone Permission OK');
+        providerManager.webSocketHandler.updateCheckStatus(micSelectionCheck, 'success', 'Microphone Selection Ready');
     } else {
-        webSocketHandler.updateCheckStatus(micPermissionCheck, 'error', 'Microphone Permission Denied');
-        webSocketHandler.updateCheckStatus(micSelectionCheck, 'error', 'Microphone Selection Failed');
+        providerManager.webSocketHandler.updateCheckStatus(micPermissionCheck, 'error', 'Microphone Permission Denied');
+        providerManager.webSocketHandler.updateCheckStatus(micSelectionCheck, 'error', 'Microphone Selection Failed');
         return;
     }
 
-    // 2. Backend Connection
-    webSocketHandler.connect();
+    // --- 2. Backend Connection and Session Establishment (NEW ASYNC FLOW) ---
+    // We now `await` the connection. The `connect` method returns a promise that
+    // only resolves after the WebSocket is open AND the server has confirmed
+    // that a session (new or resumed) is established.
+    try {
+        providerManager.webSocketHandler.updateCheckStatus(providerManager.checks.backend, 'pending', 'Connecting to Backend...');
+        await webSocketHandler.connect();
+        providerManager.webSocketHandler.updateCheckStatus(providerManager.checks.backend, 'success', 'Backend Connected');
+    } catch (error) {
+        providerManager.webSocketHandler.updateCheckStatus(providerManager.checks.backend, 'error', 'Backend Connection Failed');
+        console.error("Failed to establish WebSocket connection and session:", error);
+        // The error status is already set within the WebSocketHandler's onError method.
+        return; // Stop checks if backend connection fails.
+    }
 
-    // 3. AI Provider Checks
+    // --- 3. AI Provider and Deepgram API Verification ---
+    // These checks are now only run *after* the backend session is confirmed to be ready.
+    // This ensures that the verification messages can be sent reliably.
     await providerManager.runPreFlightChecks();
 }
 
