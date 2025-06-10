@@ -12,11 +12,12 @@ from services.context_manager import PersistentContextManager
 class LLMManager:
     """Enhanced LLM Manager with persistent context support and error recovery."""
     
-    def __init__(self, provider_name: str, base_url: str, api_key: str, model_name: str):
+    def __init__(self, provider_name: str, base_url: str, api_key: str, model_name: str, request_params: Optional[Dict[str, Any]] = None):
         self.provider_name = provider_name
         self.model_name = model_name
         self.base_url = base_url
         self.api_key = api_key
+        self.request_params = request_params or {}
         self.context_manager = None  # Will be shared from MultiLLMManager
         self.is_healthy = True
         self.last_error = None
@@ -84,71 +85,79 @@ class LLMManager:
             
             print(f"🎯 Processing with {self.provider_name}-{self.model_name}: '{question[:100]}...'")
             
+            # --- API Call Logic with Provider Routing ---
+            
+            # Base parameters for the API call
+            api_params = {
+                "messages": [{"role": "user", "content": prompt}],
+                "model": self.model_name,
+                "temperature": 0.3,
+                "top_p": 0.85,
+                "max_tokens": 8000
+            }
+
+            # Add provider-specific routing if available
+            if self.request_params:
+                print(f"INFO: Using custom request params for {self.provider_name}: {self.request_params}")
+                
+                # For OpenRouter, use extra_body to pass provider routing
+                if self.provider_name == "OpenRouter" and "provider" in self.request_params:
+                    api_params["extra_body"] = self.request_params
+                    print(f"INFO: Using extra_body for OpenRouter provider routing")
+                else:
+                    # For other providers, add parameters directly
+                    api_params.update(self.request_params)
+
+            # Debug logging for API parameters
+            print(f"DEBUG: Final API params for {self.provider_name}:")
+            print(f"  - Model: {api_params.get('model')}")
+            print(f"  - Has extra_body: {'extra_body' in api_params}")
+            if 'extra_body' in api_params:
+                print(f"  - Extra body: {api_params['extra_body']}")
+
             # Determine if streaming is requested
             use_streaming = stream_callback is not None
-            
+
             if use_streaming:
-                # Streaming API call for real-time responses
+                api_params["stream"] = True
                 full_answer = ""
                 streaming_active = True
                 try:
-                    async for chunk in await self.client.chat.completions.create(
-                        messages=[{"role": "user", "content": prompt}],
-                        model=self.model_name,
-                        temperature=0.3,  # Slightly lower for faster, more focused responses
-                        top_p=0.85,       # More focused responses
-                        max_tokens=8000,  # Optimized for speed
-                        stream=True       # Enable streaming
-                    ):
+                    async for chunk in await self.client.chat.completions.create(**api_params):
                         if not streaming_active:
                             print("⚠️ Streaming stopped due to callback failure")
                             break
-                            
-                        if chunk.choices[0].delta.content:
+                        
+                        if chunk.choices and chunk.choices[0].delta and chunk.choices[0].delta.content:
                             content_chunk = chunk.choices[0].delta.content
                             full_answer += content_chunk
-                            # Send chunk to callback immediately and check result
                             if stream_callback:
                                 try:
                                     callback_result = await stream_callback(content_chunk, "chunk")
-                                    # If callback returns False, stop streaming
                                     if callback_result is False:
-                                        print("⚠️ Stream callback returned False, stopping stream")
+                                        print("⚠️ Stream callback returned False, stopping stream.")
                                         streaming_active = False
                                         break
                                 except Exception as e:
                                     print(f"⚠️ Stream callback error, stopping stream: {e}")
                                     streaming_active = False
                                     break
-                
                     answer = full_answer.strip()
+
                 except Exception as e:
-                    # If streaming fails, fall back to non-streaming
                     print(f"⚠️ Streaming failed for {self.provider_name}, falling back to non-streaming: {e}")
+                    api_params.pop("stream", None) # Ensure stream is off for fallback
                     chat_completion = await asyncio.wait_for(
-                        self.client.chat.completions.create(
-                            messages=[{"role": "user", "content": prompt}],
-                            model=self.model_name,
-                            temperature=0.3,
-                            top_p=0.85,
-                            max_tokens=8000
-                        ),
+                        self.client.chat.completions.create(**api_params),
                         timeout=30.0
                     )
                     answer = chat_completion.choices[0].message.content.strip()
             else:
-                # Non-streaming API call (fallback/legacy)
+                # Non-streaming API call
                 chat_completion = await asyncio.wait_for(
-                    self.client.chat.completions.create(
-                        messages=[{"role": "user", "content": prompt}],
-                        model=self.model_name,
-                        temperature=0.3,  # Optimized for speed
-                        top_p=0.85,
-                        max_tokens=8000   # Optimized for speed
-                    ),
-                    timeout=30.0  # Reduced timeout for faster failure detection
+                    self.client.chat.completions.create(**api_params),
+                    timeout=30.0
                 )
-                
                 answer = chat_completion.choices[0].message.content.strip()
             
             # Add AI response to conversation history
@@ -247,39 +256,43 @@ class MultiLLMManager:
                 providers_config = json.load(f)
             
             # Setup primary provider
-            primary_provider_config = next((p for p in providers_config 
+            primary_provider_config = next((p for p in providers_config
                                           if p["name"] == primary_config["provider"]), None)
             
             if not primary_provider_config:
                 raise ValueError(f"Primary provider '{primary_config['provider']}' not found in configuration")
             
-            # Create primary preset
+            # --- Primary Provider Setup ---
+            primary_model_config = self._get_model_config(primary_provider_config, primary_config["model"])
+            
             self.presets["primary"] = {
                 "provider": primary_config["provider"],
-                "model": primary_config["model"],
-                "description": f"Primary - {primary_config['provider']} ({primary_config['model']})",
+                "model": primary_model_config["modelName"],
+                "description": primary_model_config.get("description", f"Primary - {primary_config['provider']} ({primary_model_config['modelName']})"),
                 "priority": 1
             }
-            
-            # Initialize primary LLM manager
+
             self.providers["primary"] = LLMManager(
                 provider_name=primary_provider_config["name"],
                 base_url=primary_provider_config["baseURL"],
                 api_key=primary_provider_config["apiKey"],
-                model_name=primary_config["model"]
+                model_name=primary_model_config["modelName"],
+                request_params=primary_model_config.get("requestParams")
             )
             self.providers["primary"].set_context_manager(self.shared_context)
             
             # Setup secondary provider if provided
             if secondary_config and secondary_config.get("provider") and secondary_config.get("model"):
-                secondary_provider_config = next((p for p in providers_config 
+                secondary_provider_config = next((p for p in providers_config
                                                 if p["name"] == secondary_config["provider"]), None)
                 
                 if secondary_provider_config:
+                    secondary_model_config = self._get_model_config(secondary_provider_config, secondary_config["model"])
+                    
                     self.presets["secondary"] = {
                         "provider": secondary_config["provider"],
-                        "model": secondary_config["model"],
-                        "description": f"Secondary - {secondary_config['provider']} ({secondary_config['model']})",
+                        "model": secondary_model_config["modelName"],
+                        "description": secondary_model_config.get("description", f"Secondary - {secondary_config['provider']} ({secondary_model_config['modelName']})"),
                         "priority": 2
                     }
                     
@@ -287,7 +300,8 @@ class MultiLLMManager:
                         provider_name=secondary_provider_config["name"],
                         base_url=secondary_provider_config["baseURL"],
                         api_key=secondary_provider_config["apiKey"],
-                        model_name=secondary_config["model"]
+                        model_name=secondary_model_config["modelName"],
+                        request_params=secondary_model_config.get("requestParams")
                     )
                     self.providers["secondary"].set_context_manager(self.shared_context)
                     
@@ -312,6 +326,15 @@ class MultiLLMManager:
         except Exception as e:
             print(f"❌ CRITICAL: Failed to load MultiLLMManager configuration: {e}")
             return False
+
+    def _get_model_config(self, provider_config: Dict[str, Any], model_identifier: str) -> Dict[str, Any]:
+        """Finds model configuration, supporting both string and dict formats."""
+        for model in provider_config.get("models", []):
+            if isinstance(model, str) and model == model_identifier:
+                return {"modelName": model} # Normalize to dict
+            if isinstance(model, dict) and model.get("modelName") == model_identifier:
+                return model
+        raise ValueError(f"Model '{model_identifier}' not found for provider '{provider_config['name']}'")
 
     def initialize_candidate_context(self, onboarding_data: Dict[str, Any]):
         """Initialize shared candidate context"""
@@ -436,7 +459,7 @@ class MultiLLMManager:
                 print(f"🔄 Attempting fallback to {fallback_preset}...")
                 
                 manager = self.providers[fallback_preset]
-                # Don't use streaming for fallback to avoid confusion
+                # Don't use streaming for fallback
                 answer, result_info = await manager.get_ai_answer(question, None)
                 
                 if result_info.get("success"):

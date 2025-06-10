@@ -250,15 +250,36 @@ START_IN_STEALTH_MODE=false
 ```
 
 ### 🤖 **AI Providers (ai_providers.json)**
+
+This file configures all AI providers for the application. To protect your secret keys, this file is **not** checked into version control. Instead, you must create it from the provided template.
+
+#### **Initial Setup**
+1.  **Rename the Template**: In the project's root directory, find `ai_providers.example.json` and rename it to `ai_providers.json`.
+2.  **Add API Keys**: Open your new `ai_providers.json` and replace the placeholder API keys (e.g., `"YOUR_PROVIDER_API_KEY_HERE"`) with your actual secret keys for each provider you intend to use.
+
+#### **Adding a New Provider**
+To add a new provider, add a new JSON object to the list with the following structure:
 ```json
 {
-  "name": "Groq",
-  "baseURL": "https://api.groq.com/openai/v1",
-  "apiKey": "your_groq_key",
-  "models": ["llama-3.3-70b", "llama-4-maverick-17b"],
+  "name": "YourProviderName",
+  "baseURL": "https://api.your-provider.com/openai/v1",
+  "apiKey": "YOUR_SECRET_API_KEY",
+  "models": ["model-a", "model-b"],
+  "visionModels": ["vision-model-a"],
   "supportsVision": true,
-  "visionModels": ["llama-4-scout-17b", "llama-4-maverick-17b"],
-  "default": true
+  "defaultModel": "model-a"
+}
+```
+
+#### **Custom Routing with OpenRouter**
+You can route requests for specific OpenRouter models to a designated provider (like Cerebras). To do this, instead of listing the model as a simple string, use an object with `requestParams`:
+```json
+{
+    "modelName": "meta-llama/llama-3.3-70b-instruct",
+    "description": "Llama 3.3 70B (via Cerebras)",
+    "requestParams": {
+        "provider": { "only": ["Cerebras"] }
+    }
 }
 ```
 
