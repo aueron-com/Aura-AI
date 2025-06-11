@@ -187,24 +187,15 @@ export class WebSocketHandler {
     }
 
     handleTranscriptUpdate(payload) {
-        // With diarization disabled, all speech comes from speaker 0 (candidate)
+        // With diarization disabled, all speech comes from speaker 0 and should be labeled as Interviewer
         // With diarization enabled, speaker 0 = candidate, speaker 1+ = interviewer(s)
         const speakerId = payload.speaker !== undefined ? payload.speaker : 0;
         
-        if (speakerId === 0) {
-            // Speaker 0 is the candidate
-            if (payload.is_final) {
-                liveInterviewUI.addCandidateTranscript(payload.transcript, false);
-            } else {
-                liveInterviewUI.addCandidateTranscript(payload.transcript, true);
-            }
+        // Since diarization is disabled, all speech (speaker 0) should be treated as interviewer
+        if (payload.is_final) {
+            liveInterviewUI.addInterviewerQuestion(payload.transcript, false);
         } else {
-            // Speaker 1+ are interviewers (when diarization is enabled)
-            if (payload.is_final) {
-                liveInterviewUI.addInterviewerQuestion(payload.transcript, false);
-            } else {
-                liveInterviewUI.addInterviewerQuestion(payload.transcript, true);
-            }
+            liveInterviewUI.addInterviewerQuestion(payload.transcript, true);
         }
     }
     
