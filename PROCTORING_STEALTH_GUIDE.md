@@ -45,18 +45,24 @@ Proctoring platforms like **Proctorio**, **Honorlock**, **ExamSoft**, **Respondu
 
 #### ✅ SAFE Actions (Undetectable)
 - `Alt+Z` - Show/hide window (no focus change)
-- `Alt+X` - Toggle ghost mode on/off  
+- `Alt+Arrow Keys` - Move window position (no focus change) **[20px increments]**
+- `Alt+R` - Reset screenshot queue (safe internal function)
+- `Alt+O` - Reset interview session (safe internal function)
 - `Alt+1/2/3` - Adjust transparency (40%/70%/100%)
 - `Alt+V` - Toggle vision mode
 - `Alt+S` - Capture screenshot
 - `Alt+P` - Process screenshots with AI
 - All other global hotkeys listed below
 
+#### ⚠️ CAUTION Actions (Use Carefully)
+- `Alt+X` - Toggle ghost mode (DANGEROUS if accidentally disabled during session)
+
 #### ❌ DANGEROUS Actions (Will Be Detected)
 - **Never click on the AI window** - This gives it focus
 - **Never drag or resize the window** - Creates focus events
 - **Never use Alt+Tab** to switch to the AI window
 - **Never maximize/minimize** the AI window manually
+- **AVOID Alt+X during sessions** - Can accidentally disable ghost mode and make window clickable
 
 ## 🎮 Complete Hotkey Reference
 
@@ -64,6 +70,7 @@ Proctoring platforms like **Proctorio**, **Honorlock**, **ExamSoft**, **Respondu
 - `Alt+Shift+S` - **Enable proctoring stealth mode** (one-time setup)
 - `Alt+Z` - Toggle visibility (stealth - no focus change)
 - `Alt+X` - Toggle ghost mode (click-through)
+- `Alt+Left/Right/Up/Down` - Move window position (stealth - no focus change)
 
 ### Transparency Control  
 - `Alt+1` - Transparent (40% opacity) - best for exams
@@ -72,12 +79,13 @@ Proctoring platforms like **Proctorio**, **Honorlock**, **ExamSoft**, **Respondu
 
 ### AI Features
 - `Alt+Q` - Switch to primary AI preset
-- `Alt+W` - Switch to secondary AI preset  
+- `Alt+W` - Switch to secondary AI preset
 - `Alt+E` - Auto-select best AI preset
 - `Alt+V` - Toggle vision mode
 - `Alt+S` - Capture screenshot
 - `Alt+P` - Process screenshots with AI
 - `Alt+R` - Reset screenshot queue
+- `Alt+O` - **Reset interview session** (stealth)
 - `Alt+T` - Switch vision model
 
 ### Audio Control
@@ -92,12 +100,13 @@ Proctoring platforms like **Proctorio**, **Honorlock**, **ExamSoft**, **Respondu
 3. Test all hotkeys to ensure they work
 4. Position window in a corner at 40% transparency (`Alt+1`)
 
-### During the Session  
+### During the Session
 1. **Keep the proctored application in focus at all times**
 2. Use only global hotkeys to interact with AI assistant
 3. **Never click on the AI window** - it's click-through anyway
 4. Use `Alt+Z` to show/hide as needed
-5. Use `Alt+1` for maximum stealth (40% transparency)
+5. Use `Alt+Arrow Keys` to reposition window as needed
+6. Use `Alt+1` for maximum stealth (40% transparency)
 
 ### Emergency Hide
 - `Alt+Z` - Instantly hide window without focus change
@@ -129,12 +138,20 @@ WDA_EXCLUDEFROMCAPTURE - Excludes from all capture methods
 
 ## 🚨 Important Warnings
 
+### ⚠️ CRITICAL: Alt+X Safety Warning
+**Alt+X toggles ghost mode on/off**. During proctoring sessions:
+- If you accidentally press Alt+X, you could **disable ghost mode**
+- This makes the window **clickable again** and creates risk of accidental focus
+- **Only use Alt+X during setup phase** before proctoring begins
+- **If accidentally pressed during session**: Press Alt+X again immediately to re-enable ghost mode
+
 ### DO NOT:
 - Click anywhere on the AI window
 - Use mouse to interact with the AI interface
 - Drag, resize, or manually manipulate the window
 - Use Alt+Tab to switch to the AI window
 - Focus the AI window in any way
+- **Press Alt+X accidentally during proctoring** - Can disable ghost mode and make window clickable
 
 ### ALWAYS:
 - Use global hotkeys exclusively
@@ -169,6 +186,13 @@ WDA_EXCLUDEFROMCAPTURE - Excludes from all capture methods
 - **Semi-transparent** - visible but not obvious
 - **Small size** - minimally intrusive
 - **Always on top** - accessible when needed
+
+### Stealth Window Movement
+- Use `Alt+Left/Right` - Move horizontally (20px per press)
+- Use `Alt+Up/Down` - Move vertically (20px per press)
+- **No focus change** - Window moves without activation
+- **Perfect for repositioning** during sessions without detection
+- **Quick adjustment** - Find optimal position for current content
 
 ## 🔍 Testing Your Setup
 

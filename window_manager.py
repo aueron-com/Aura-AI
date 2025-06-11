@@ -163,6 +163,8 @@ class WindowManager:
         self.HWND_NOTOPMOST = -2
         self.SWP_NOMOVE = 0x2
         self.SWP_NOSIZE = 0x1
+        self.SWP_NOACTIVATE = 0x10  # Don't activate the window when moving
+        self.SWP_NOZORDER = 0x4     # Don't change Z-order
 
         self.user32 = ctypes.windll.user32
         
@@ -204,6 +206,22 @@ class WindowManager:
         self.GetClassNameW = self.user32.GetClassNameW
         self.GetClassNameW.argtypes = [wintypes.HWND, wintypes.LPWSTR, ctypes.c_int]
         self.GetClassNameW.restype = ctypes.c_int
+
+        # Define RECT structure for GetWindowRect
+        class RECT(ctypes.Structure):
+            _fields_ = [
+                ("left", ctypes.c_long),
+                ("top", ctypes.c_long),
+                ("right", ctypes.c_long),
+                ("bottom", ctypes.c_long)
+            ]
+        
+        self.RECT = RECT
+
+        # GetWindowRect for getting window position and size
+        self.GetWindowRect = self.user32.GetWindowRect
+        self.GetWindowRect.argtypes = [wintypes.HWND, ctypes.POINTER(RECT)]
+        self.GetWindowRect.restype = wintypes.BOOL
             
     def set_window_handle(self, window_handle: int):
         """Set the window handle for transparency operations"""
@@ -678,6 +696,63 @@ class WindowManager:
             print(f"❌ Error enabling proctoring stealth mode: {e}")
             return False
 
+    def move_window(self, dx: int, dy: int) -> bool:
+        """
+        Move window by specified offset without changing focus (stealth movement).
+        
+        Args:
+            dx: Horizontal offset in pixels (positive = right, negative = left)
+            dy: Vertical offset in pixels (positive = down, negative = up)
+        
+        Returns:
+            bool: True if successful, False otherwise
+        """
+        if not self.is_windows or not self.hwnd:
+            print("❌ Window movement requires Windows and valid window handle")
+            return False
+        
+        try:
+            # Get current window position
+            rect = self.RECT()
+            if not self.GetWindowRect(self.hwnd, ctypes.byref(rect)):
+                print("❌ Failed to get current window position")
+                return False
+            
+            # Calculate new position
+            new_x = rect.left + dx
+            new_y = rect.top + dy
+            
+            # Move window without activating it
+            result = self.SetWindowPos(
+                self.hwnd,
+                0,  # hwndInsertAfter (ignored due to SWP_NOZORDER)
+                new_x, new_y,  # new position
+                0, 0,  # width, height (ignored due to SWP_NOSIZE)
+                self.SWP_NOSIZE | self.SWP_NOACTIVATE | self.SWP_NOZORDER
+            )
+            
+            if result:
+                direction = ""
+                if dx > 0:
+                    direction += f"right {dx}px "
+                elif dx < 0:
+                    direction += f"left {abs(dx)}px "
+                if dy > 0:
+                    direction += f"down {dy}px"
+                elif dy < 0:
+                    direction += f"up {abs(dy)}px"
+                
+                print(f"🎯 Window moved {direction.strip()} (stealth - no focus change)")
+                return True
+            else:
+                print("❌ Failed to move window")
+                return False
+                
+        except Exception as e:
+            print(f"❌ Error moving window: {e}")
+            return False
+
+
     def toggle_visibility(self):
         """Toggle the window's visibility without changing focus (stealth mode)."""
         if not self.is_windows or not self.hwnd:
@@ -779,6 +854,26 @@ class WindowManager:
             """Enable proctoring stealth mode (Alt+Shift+S)"""
             self.enable_proctoring_stealth_mode()
 
+        def on_move_left():
+            """Move window left (Alt+Left)"""
+            self.move_window(-20, 0)
+
+        def on_move_right():
+            """Move window right (Alt+Right)"""
+            self.move_window(20, 0)
+
+        def on_move_up():
+            """Move window up (Alt+Up)"""
+            self.move_window(0, -20)
+
+        def on_move_down():
+            """Move window down (Alt+Down)"""
+            self.move_window(0, 20)
+
+        def on_reset_interview():
+            """Reset interview session (Alt+O)"""
+            self.send_interview_command("reset_interview")
+
         hotkey_map = {
             '<alt>+x': on_toggle_ghost,
             '<alt>+z': on_hide_show,
@@ -796,6 +891,11 @@ class WindowManager:
             '<alt>+2': on_transparency_semi,         # 70% opacity (semi-transparent)
             '<alt>+3': on_transparency_opaque,       # 100% opacity (opaque)
             '<alt>+<shift>+s': on_enable_proctoring_stealth,  # Enable proctoring stealth mode
+            '<alt>+<left>': on_move_left,      # Move window left
+            '<alt>+<right>': on_move_right,    # Move window right
+            '<alt>+<up>': on_move_up,          # Move window up
+            '<alt>+<down>': on_move_down,      # Move window down
+            '<alt>+o': on_reset_interview,     # Reset interview session
         }
         
         with keyboard.GlobalHotKeys(hotkey_map) as h:
@@ -882,6 +982,19 @@ class WindowManager:
         except Exception as e:
             print(f"❌ Error sending vision switch command: {e}")
 
+    def send_interview_command(self, command: str):
+        """Send interview-related command to the application"""
+        try:
+            from datetime import datetime
+            print(f"🎤 Global hotkey triggered: {command}")
+            self._write_command_file({
+                "command": command,
+                "timestamp": datetime.now().isoformat(),
+                "source": "global_hotkey"
+            })
+        except Exception as e:
+            print(f"❌ Error sending interview command: {e}")
+
     def _write_command_file(self, command_data: dict):
         """Write command to temp file for inter-process communication"""
         import tempfile
@@ -906,10 +1019,12 @@ class WindowManager:
         print("🚀 Initializing global hotkey listener...")
         print("   Alt+X: Toggle ghost mode (click-through)")
         print("   Alt+Z: Toggle window visibility (stealth - no focus)")
+        print("   Alt+Arrow Keys: Move window (stealth - no focus)")
         print("   Alt+V: Toggle vision mode")
         print("   Alt+S: Capture screenshot")
         print("   Alt+P: Process screenshots with AI")
         print("   Alt+R: Reset screenshot queue")
+        print("   Alt+O: Reset interview session")
         print("   Alt+Q: Switch to primary AI preset")
         print("   Alt+W: Switch to secondary AI preset")
         print("   Alt+E: Auto-select best AI preset")
@@ -982,6 +1097,10 @@ def stop_screen_share_monitor():
 def enable_proctoring_stealth_mode():
     """Enable complete stealth mode for proctoring environments"""
     return window_manager.enable_proctoring_stealth_mode()
+
+def move_window(dx: int, dy: int) -> bool:
+    """Move window by specified offset without changing focus"""
+    return window_manager.move_window(dx, dy)
 
 def test_screen_share_detection():
     """Test function to show all currently detected screen sharing indicators"""

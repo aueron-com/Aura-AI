@@ -163,6 +163,8 @@ class GlobalCommandMonitor:
                 self._execute_browser_command('if (window.toggleUniversalMute) { window.toggleUniversalMute(); } else { console.warn("toggleUniversalMute not available"); }')
             elif command == 'switch_vision_model':
                 self._execute_browser_command('if (window.switchVisionModel) { window.switchVisionModel(); } else { console.warn("switchVisionModel not available"); }')
+            elif command == 'reset_interview':
+                self._execute_browser_command('if (window.resetInterview) { window.resetInterview(); } else { console.warn("resetInterview not available"); }')
             elif command == 'context_aware_action':
                 action = command_data.get('action', '')
                 if action == 'auto_select_preset':
