@@ -17,7 +17,7 @@ from pynput import keyboard
 # --- Scroll Configuration ---
 # Change this value to adjust scroll speed (pixels per scroll action)
 # Examples: 100 = slow, 150 = medium, 200 = fast, 300 = very fast
-SCROLL_AMOUNT_PX = 150
+SCROLL_AMOUNT_PX = 200
 
 # --- Win32 API Constants ---
 # These flags are used with the SetWindowDisplayAffinity function.
@@ -151,6 +151,13 @@ class WindowManager:
         self.is_ghost_mode = False
         self.screen_share_monitor_active = False
         self.hidden_screen_share_windows = set()
+        
+        # Continuous scrolling state
+        self.scrolling_up = False
+        self.scrolling_down = False
+        self.scroll_thread = None
+        self.hotkey_listener = None
+        self.alt_pressed = False
 
         if self.is_windows:
             self._setup_win32_api_definitions()
@@ -886,12 +893,12 @@ class WindowManager:
             return False
 
         def on_move_up():
-            """Move window up (Alt+Up)"""
+            """Move window up (Alt+I) - SWAPPED"""
             self.move_window(0, -20)
             return False
 
         def on_move_down():
-            """Move window down (Alt+Down)"""
+            """Move window down (Alt+J) - SWAPPED"""
             self.move_window(0, 20)
             return False
 
@@ -900,16 +907,56 @@ class WindowManager:
             self.send_interview_command("reset_interview")
             return False
 
-        def on_scroll_up():
-            """Scroll up (Alt+I)"""
-            self.send_scroll_command("up")
+        # Add single press scroll handlers for initial response
+        def on_scroll_up_start():
+            """Start continuous scroll up (Alt+Up)"""
+            if not self.scrolling_up:
+                self.scrolling_up = True
+                self._start_continuous_scrolling()
+                print("🔼 Starting continuous scroll up")
             return False
 
-        def on_scroll_down():
-            """Scroll down (Alt+J)"""
-            self.send_scroll_command("down")
+        def on_scroll_down_start():
+            """Start continuous scroll down (Alt+Down)"""
+            if not self.scrolling_down:
+                self.scrolling_down = True
+                self._start_continuous_scrolling()
+                print("🔽 Starting continuous scroll down")
             return False
 
+        # Create a separate listener for key releases to stop scrolling
+        def start_release_listener():
+            """Background thread to handle key releases for stopping continuous scroll"""
+            import threading
+            
+            def on_key_release(key):
+                try:
+                    if key == keyboard.Key.up and self.scrolling_up:
+                        self.scrolling_up = False
+                        print("🛑 Stopped continuous scroll up")
+                    elif key == keyboard.Key.down and self.scrolling_down:
+                        self.scrolling_down = False
+                        print("🛑 Stopped continuous scroll down")
+                except:
+                    pass
+
+            def on_key_press(key):
+                # We don't need to handle press here since GlobalHotKeys handles it
+                pass
+
+            release_listener = keyboard.Listener(
+                on_press=on_key_press,
+                on_release=on_key_release,
+                suppress=False
+            )
+            release_listener.start()
+            release_listener.join()
+
+        # Start the release listener in background
+        release_thread = Thread(target=start_release_listener, daemon=True)
+        release_thread.start()
+
+        # Regular hotkeys using the proven GlobalHotKeys approach
         hotkey_map = {
             '<alt>+x': on_toggle_ghost,
             '<alt>+z': on_hide_show,
@@ -929,11 +976,11 @@ class WindowManager:
             '<alt>+<shift>+s': on_enable_proctoring_stealth,  # Enable proctoring stealth mode
             '<alt>+<left>': on_move_left,      # Move window left
             '<alt>+<right>': on_move_right,    # Move window right
-            '<alt>+<up>': on_move_up,          # Move window up
-            '<alt>+<down>': on_move_down,      # Move window down
+            '<alt>+i': on_move_up,             # Move window up (SWAPPED)
+            '<alt>+j': on_move_down,           # Move window down (SWAPPED)
             '<alt>+o': on_reset_interview,     # Reset interview session
-            '<alt>+i': on_scroll_up,           # Scroll up
-            '<alt>+j': on_scroll_down,         # Scroll down
+            '<alt>+<up>': on_scroll_up_start,  # Start continuous scroll up (NEW)
+            '<alt>+<down>': on_scroll_down_start,  # Start continuous scroll down (NEW)
         }
         
         with keyboard.GlobalHotKeys(hotkey_map) as h:
@@ -1048,6 +1095,33 @@ class WindowManager:
         except Exception as e:
             print(f"❌ Error sending scroll command: {e}")
 
+    def _continuous_scroll_loop(self):
+        """Continuous scrolling loop that runs while scroll keys are held"""
+        import time
+        while self.scrolling_up or self.scrolling_down:
+            try:
+                if self.scrolling_up:
+                    self.send_scroll_command("up")
+                elif self.scrolling_down:
+                    self.send_scroll_command("down")
+                
+                # Wait 100ms between scroll commands for smooth scrolling
+                time.sleep(0.05)
+            except Exception as e:
+                print(f"❌ Error in continuous scroll loop: {e}")
+                break
+        
+        # Reset scroll thread when loop exits
+        self.scroll_thread = None
+        print("🔄 Continuous scroll loop ended")
+
+    def _start_continuous_scrolling(self):
+        """Start the continuous scrolling thread if not already running"""
+        if self.scroll_thread is None or not self.scroll_thread.is_alive():
+            self.scroll_thread = Thread(target=self._continuous_scroll_loop, daemon=True)
+            self.scroll_thread.start()
+            print("🔄 Started continuous scroll loop")
+
     def _write_command_file(self, command_data: dict):
         """Write command to temp file for inter-process communication"""
         import tempfile
@@ -1072,9 +1146,11 @@ class WindowManager:
         print("🚀 Initializing global hotkey listener...")
         print("   Alt+X: Toggle ghost mode (click-through)")
         print("   Alt+Z: Toggle window visibility (stealth - no focus)")
-        print("   Alt+Arrow Keys: Move window (stealth - no focus)")
-        print("   Alt+I: Scroll up (smooth)")
-        print("   Alt+J: Scroll down (smooth)")
+        print("   Alt+Left/Right Arrow: Move window left/right (stealth - no focus)")
+        print("   Alt+I: Move window up (stealth - no focus)")
+        print("   Alt+J: Move window down (stealth - no focus)")
+        print("   Alt+Up Arrow: Continuous scroll up (hold for continuous)")
+        print("   Alt+Down Arrow: Continuous scroll down (hold for continuous)")
         print("   Alt+V: Toggle vision mode")
         print("   Alt+S: Capture screenshot")
         print("   Alt+P: Process screenshots with AI")
