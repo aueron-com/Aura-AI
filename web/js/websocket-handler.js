@@ -146,6 +146,9 @@ export class WebSocketHandler {
             case 'ai_answer_complete':
                 this.handleAiAnswerComplete(data.payload);
                 break;
+            case 'ai_answer_cancelled':
+                this.handleAiAnswerCancelled(data.payload);
+                break;
             case 'preset_initialized':
                 this.handlePresetInitialized(data.payload);
                 break;
@@ -212,6 +215,12 @@ export class WebSocketHandler {
 
     handleAiAnswerComplete(payload) {
         liveInterviewUI.finalizeStreamingResponse(payload);
+    }
+
+    handleAiAnswerCancelled(payload) {
+        // A new question arrived and superseded the in-flight answer.
+        // Freeze the partial output where it is so the next answer starts fresh.
+        liveInterviewUI.finalizeStreamingResponse({ forceFinalize: true });
     }
 
     handlePresetInitialized(payload) {

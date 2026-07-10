@@ -30,6 +30,9 @@ class InterviewSession:
         }
         self.transcript_buffer: str = ""
         self.silence_timer: Optional[asyncio.Task] = None
+        # Tracks the in-flight LLM streaming task so a new transcript can cancel
+        # a stale answer instead of letting two streams interleave on the wire.
+        self.processing_task: Optional[asyncio.Task] = None
         self.last_activity_time: float = time.time()
 
     def _touch(self):
@@ -179,9 +182,9 @@ class InterviewSession:
         self._touch()
         print(f"🔄 Session {self.session_id}: Resetting interview context...")
         self.transcript_buffer = ""
-        if self.silence_timer:
-            self.silence_timer.cancel()
-        
+        if self.processing_task and not self.processing_task.done():
+            self.processing_task.cancel()
+
         if self.llm_manager:
             self.llm_manager.reset_context()
 
@@ -220,7 +223,7 @@ class InterviewSession:
 
         transcript = self.transcript_buffer
         self.transcript_buffer = ""
-        
+
         print(f"✅ Silence detected. Processing transcript for session {self.session_id}: {transcript}")
         if not self.llm_manager or not self.websocket:
             return
@@ -232,13 +235,29 @@ class InterviewSession:
                 return await self._send_json("ai_answer_chunk", {"chunk": chunk, "chunk_type": chunk_type})
 
             answer, result_info = await self.llm_manager.get_ai_answer(transcript, stream_callback)
-            
+
             await self._send_json("ai_answer_complete", {"answer": answer, **result_info})
             print(f"🤖 AI STREAMING COMPLETE for session {self.session_id}")
+
+        except asyncio.CancelledError:
+            # A new transcript arrived and superseded this answer. Tell the client
+            # to drop the partial output so the next answer renders cleanly.
+            print(f"⚡ Session {self.session_id}: Answer cancelled by new question")
+            try:
+                await self._send_json("ai_answer_cancelled", {"reason": "superseded_by_new_question"})
+            except Exception:
+                pass
+            raise
 
         except Exception as e:
             print(f"❌ CRITICAL: Error processing transcript for session {self.session_id}: {e}")
             await self._send_json("error", {"message": "Error processing transcript."})
+
+    async def _delayed_processing(self):
+        """Wait for the silence window, then process. Wrapped so cancellation
+        during the sleep phase (no answer sent yet) is silent."""
+        await asyncio.sleep(1.5)
+        await self._process_aggregated_transcript()
 
     async def on_transcript(self, data):
         """Callback from Deepgram. Handles transcript logic and silence detection."""
@@ -252,14 +271,17 @@ class InterviewSession:
         is_final = data.get('is_final', False)
 
         if transcript:
-            if self.silence_timer:
-                self.silence_timer.cancel()
-            
-            async def delayed_processing():
-                await asyncio.sleep(1.5)
-                await self._process_aggregated_transcript()
-            
-            self.silence_timer = asyncio.create_task(delayed_processing())
+            # A new transcript invalidates any pending or in-flight answer.
+            # Cancelling the processing_task raises CancelledError inside the
+            # LLM stream, which propagates to _process_aggregated_transcript
+            # and emits the ai_answer_cancelled event to the client.
+            if self.processing_task and not self.processing_task.done():
+                self.processing_task.cancel()
+
+            self.processing_task = asyncio.create_task(self._delayed_processing())
+            # Keep silence_timer as an alias so any external code that checks it
+            # (e.g. handle_reset_session, cleanup) still works.
+            self.silence_timer = self.processing_task
 
         speaker = data.get('speaker')
         should_process = self.state.get("is_muted") or self.state.get("process_all_speakers") or (speaker == 0)
@@ -274,8 +296,8 @@ class InterviewSession:
         """Cleans up resources for the session."""
         if self.stt_manager:
             await self.stt_manager.finish()
-        if self.silence_timer and not self.silence_timer.done():
-            self.silence_timer.cancel()
+        if self.processing_task and not self.processing_task.done():
+            self.processing_task.cancel()
         self.is_active = False
         print(f"Session {self.session_id} cleaned up.")
 

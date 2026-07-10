@@ -2,11 +2,16 @@ import orjson
 import asyncio
 from typing import Dict, List, Optional, Tuple, Any
 from datetime import datetime
-from openai import AsyncOpenAI, APIStatusError
+from openai import AsyncOpenAI, APIStatusError, APIConnectionError, APITimeoutError
 from core.config import settings
 from core.prompts import get_interview_answer_prompt, get_quick_response_prompt
 from services.context_manager import PersistentContextManager
 import threading
+
+# HTTP status codes where rotating to another key may succeed.
+# 401/403: current key may be revoked; a sibling key may still be valid.
+# 408/429/5xx: transient or rate-limited on the current key/route.
+RETRYABLE_STATUS_CODES = {401, 403, 408, 429, 500, 502, 503, 504}
 
 # --- Enhanced LLMManager Class ---
 
@@ -79,40 +84,39 @@ class LLMManager:
             return False
 
     async def get_ai_answer(self, question: str, stream_callback=None) -> Tuple[str, Dict[str, Any]]:
-        """Get AI answer with instant key rotation on any error — zero delay retries."""
+        """Get AI answer, rotating keys only on retryable errors. Non-retryable errors fail fast."""
         if not self.client:
             return "I'm sorry, the AI service is not available at this time.", {
                 "error": "No client available",
                 "provider": self.provider_name,
                 "model": self.model_name
             }
-        
+
         if not self.context_manager or not self.context_manager.ensure_context_available():
             return "I'm sorry, candidate context is not properly initialized.", {
                 "error": "Context not available",
                 "provider": self.provider_name,
                 "model": self.model_name
             }
-        
-        # Add question to conversation history (once, before retry loop)
-        self.context_manager.add_conversation_exchange(question)
-        
-        # Generate prompt with persistent context
+
+        # Generate prompt with persistent context. The question is passed separately
+        # to the prompt builder, so we don't need it in conversation_history to be visible.
+        # We only add to conversation_history on success — see below.
         prompt = get_interview_answer_prompt(question, self.context_manager)
-        
+
         print(f"🎯 Processing with {self.provider_name}-{self.model_name}: '{question[:100]}...'")
-        
-        # Try all available keys — instant retry on any error
+
         max_attempts = len(self.api_keys)
         last_error = None
-        
+        non_retryable = False
+
         for attempt in range(max_attempts):
             try:
                 # Rotate key for each attempt (first attempt uses current key)
                 if attempt > 0:
                     self._rotate_key()
-                    print(f"🔄 Instant retry attempt {attempt+1}/{max_attempts} with next key for {self.provider_name}")
-                
+                    print(f"🔄 Retry {attempt+1}/{max_attempts} with next key for {self.provider_name}")
+
                 # Build API params
                 api_params = {
                     "messages": [{"role": "user", "content": prompt}],
@@ -135,29 +139,12 @@ class LLMManager:
                 if use_streaming:
                     api_params["stream"] = True
                     full_answer = ""
-                    streaming_active = True
-                    try:
-                        async for chunk in await self.client.chat.completions.create(**api_params):
-                            if not streaming_active:
-                                break
-                            
-                            if chunk.choices and chunk.choices[0].delta and chunk.choices[0].delta.content:
-                                content_chunk = chunk.choices[0].delta.content
-                                full_answer += content_chunk
-                                if stream_callback:
-                                    try:
-                                        callback_result = await stream_callback(content_chunk, "chunk")
-                                        if callback_result is False:
-                                            streaming_active = False
-                                            break
-                                    except Exception as e:
-                                        streaming_active = False
-                                        break
-                        answer = full_answer.strip()
-
-                    except Exception as stream_err:
-                        print(f"⚠️ Streaming failed for {self.provider_name} key #{self._key_index}: {stream_err}")
-                        raise stream_err  # Let the outer retry loop handle it
+                    async for chunk in await self.client.chat.completions.create(**api_params):
+                        if chunk.choices and chunk.choices[0].delta and chunk.choices[0].delta.content:
+                            content_chunk = chunk.choices[0].delta.content
+                            full_answer += content_chunk
+                            await stream_callback(content_chunk, "chunk")
+                    answer = full_answer.strip()
                 else:
                     # Non-streaming API call
                     chat_completion = await asyncio.wait_for(
@@ -165,13 +152,15 @@ class LLMManager:
                         timeout=30.0
                     )
                     answer = chat_completion.choices[0].message.content.strip()
-                
-                # Success! Add AI response and return
+
+                # Success. Commit both the question and answer to context together
+                # so we never leave an orphaned question with no response.
+                self.context_manager.add_conversation_exchange(question)
                 self.context_manager.add_ai_response(answer, "normal")
                 self.is_healthy = True
                 self.error_count = 0
                 self.last_success_time = datetime.now()
-                
+
                 return answer, {
                     "success": True,
                     "provider": self.provider_name,
@@ -180,26 +169,49 @@ class LLMManager:
                     "attempt": attempt + 1,
                     "response_time": datetime.now().isoformat()
                 }
-                
-            except Exception as e:
+
+            except asyncio.CancelledError:
+                # Cancellation from the caller (e.g., new transcript arrived).
+                # Propagate — never rotate keys or add to history.
+                raise
+
+            except APIStatusError as e:
                 last_error = e
-                err_str = str(e)[:100]
-                print(f"⚡ Key #{self._key_index} failed for {self.provider_name}: {err_str}")
-                # Continue to next key immediately — no delay
+                status = getattr(e, 'status_code', None)
+                if status not in RETRYABLE_STATUS_CODES:
+                    non_retryable = True
+                    print(f"❌ Non-retryable HTTP {status} on {self.provider_name}: {str(e)[:100]}")
+                    break
+                print(f"⚡ Retryable HTTP {status} on {self.provider_name} key #{self._key_index}")
                 continue
-        
-        # All keys exhausted
-        error_msg = f"All {max_attempts} keys failed for {self.provider_name}. Last error: {str(last_error)[:100]}"
+
+            except (asyncio.TimeoutError, APIConnectionError, APITimeoutError) as e:
+                last_error = e
+                print(f"⚡ Network/timeout on {self.provider_name} key #{self._key_index}: {str(e)[:100]}")
+                continue
+
+            except Exception as e:
+                # Unknown error class — likely a programming or config bug, not
+                # something more keys will fix. Fail fast so the real error surfaces.
+                last_error = e
+                non_retryable = True
+                print(f"❌ Unexpected error on {self.provider_name}, aborting retries: {str(e)[:100]}")
+                break
+
+        # Retries exhausted or non-retryable error
+        error_reason = "non_retryable_error" if non_retryable else "all_keys_failed"
+        error_msg = f"{self.provider_name} request failed ({error_reason}). Last error: {str(last_error)[:100]}"
         self.is_healthy = False
         self.last_error = str(last_error)
         self.error_count += 1
-        print(f"🚨 ALL KEYS EXHAUSTED: {self.provider_name}-{self.model_name}")
-        
+        print(f"🚨 {error_reason.upper()}: {self.provider_name}-{self.model_name}")
+
         return error_msg, {
-            "error": "all_keys_failed",
-            "attempts": max_attempts,
+            "error": error_reason,
+            "attempts": attempt + 1,
             "provider": self.provider_name,
-            "model": self.model_name
+            "model": self.model_name,
+            "status_code": getattr(last_error, 'status_code', None) if isinstance(last_error, APIStatusError) else None
         }
 
     def process_candidate_response(self, response: str):
