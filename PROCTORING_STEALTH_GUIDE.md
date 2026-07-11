@@ -69,6 +69,7 @@ Proctoring platforms like **Proctorio**, **Honorlock**, **ExamSoft**, **Respondu
 - **Never use Alt+Tab** to switch to the AI window
 - **Never maximize/minimize** the AI window manually
 - **AVOID Alt+X during sessions** - Can accidentally disable ghost mode and make window clickable
+- **Do NOT change the Windows default audio output device mid-interview** - "Share system audio" binds to whichever playback device was default when you started; switching (e.g. speakers ↔ Bluetooth headphones) silently breaks transcription until you end and restart the interview. Pick your output device before clicking Start Interview and leave it alone.
 
 ## 🎮 Complete Hotkey Reference
 

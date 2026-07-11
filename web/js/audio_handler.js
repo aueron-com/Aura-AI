@@ -10,6 +10,10 @@ let micStream = null;
 let systemStream = null;
 let micGainNode = null;
 let screenVideoTrack = null; // Store video track for screenshot reuse
+// Silent constant source used only in interviewer-only mode to give the audio
+// graph the same two-input topology as mixed mode. Some Chromium builds don't
+// pump getDisplayMedia audio when it's the graph's only source.
+let dummyMicSource = null;
 
 /**
  * Requests permission to use the microphone and populates the dropdown.
@@ -61,6 +65,11 @@ export async function startAudioProcessing(micId, onAudioData, opts = {}) {
             micStream = await navigator.mediaDevices.getUserMedia({ audio: { deviceId: { exact: micId } } });
             console.log(`🎤 Mic stream acquired: ${micStream.getAudioTracks().length} audio track(s)`);
         }
+        // Known limitation: on Windows, this WASAPI loopback session is bound to
+        // whichever playback endpoint was default at capture time. If the user
+        // switches the default output device (speakers ↔ Bluetooth headphones)
+        // mid-interview, the track goes silent and cannot be silently re-bound
+        // without a fresh user gesture. Documented in PROCTORING_STEALTH_GUIDE.md.
         systemStream = await navigator.mediaDevices.getDisplayMedia({ video: true, audio: true });
 
         // Log what we actually got — audio track presence is the #1 cause of "no voice picked up".
@@ -99,8 +108,7 @@ export async function startAudioProcessing(micId, onAudioData, opts = {}) {
         }
 
         // 2. Setup AudioContext and Worklet.
-        // Bust the browser cache for the worklet so edits to audio_processor.js
-        // actually take effect on next launch instead of running a stale copy.
+        // Cache-bust the worklet URL so edits actually take effect on next launch.
         audioContext = new (window.AudioContext || window.webkitAudioContext)();
         console.log(`🎵 AudioContext: ${audioContext.sampleRate}Hz state=${audioContext.state}`);
         await audioContext.audioWorklet.addModule(`/static/js/audio_processor.js?v=${Date.now()}`);
@@ -165,10 +173,18 @@ export async function startAudioProcessing(micId, onAudioData, opts = {}) {
 
             micSource.connect(micGainNode);
             micGainNode.connect(mixedProcessor);
+        } else {
+            // Give the graph the SAME two-source topology as mixed mode by feeding
+            // a silent ConstantSourceNode into the processor. Without a second
+            // source, some Chromium builds don't pump the getDisplayMedia audio
+            // into Web Audio — the worklet runs on silence.
+            dummyMicSource = audioContext.createConstantSource();
+            dummyMicSource.offset.value = 0;
+            dummyMicSource.start();
+            dummyMicSource.connect(mixedProcessor);
         }
 
         // System audio always connects directly (we don't want to mute interviewer).
-        // In interviewer-only mode this is input[0] on the worklet since no mic is wired.
         systemSource.connect(mixedProcessor);
 
         // Store the video track for screenshot reuse, but remove it from the stream
@@ -257,6 +273,10 @@ export function isScreenSharingAvailable() {
  */
 export function stopAudioProcessing() {
     console.log("Stopping audio processing.");
+    if (dummyMicSource) {
+        try { dummyMicSource.stop(); dummyMicSource.disconnect(); } catch (_) {}
+        dummyMicSource = null;
+    }
     if (micStream) {
         micStream.getTracks().forEach(track => track.stop());
         micStream = null;
@@ -274,7 +294,7 @@ export function stopAudioProcessing() {
         audioContext.close();
         audioContext = null;
     }
-    
+
     // Reset mute state in the central manager
     muteManager.setMicrophoneMute(true);
     muteManager.setUniversalMute(false);
