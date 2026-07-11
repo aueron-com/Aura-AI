@@ -293,6 +293,12 @@ export class WebSocketHandler {
     }
 
     sendAudioChunk(chunk, is_muted) {
+        // Diagnostic: log a heartbeat so we can confirm chunks are leaving the client.
+        this._audioChunkCounter = (this._audioChunkCounter || 0) + 1;
+        if (this._audioChunkCounter === 1 || this._audioChunkCounter % 750 === 0) {
+            const wsOpen = this.socket && this.socket.readyState === WebSocket.OPEN;
+            console.log(`📤 sendAudioChunk #${this._audioChunkCounter}: bytes=${chunk.byteLength} is_muted=${is_muted} wsOpen=${wsOpen}`);
+        }
         this.sendMessage('audio_chunk', {
             audio: Array.from(new Uint8Array(chunk)),
             is_muted: is_muted
