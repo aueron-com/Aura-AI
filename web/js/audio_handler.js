@@ -54,36 +54,56 @@ export async function setupMicrophone() {
  */
 export async function startAudioProcessing(micId, onAudioData, opts = {}) {
     const interviewerOnly = !!opts.interviewerOnly;
+    console.log(`🎬 startAudioProcessing called — interviewerOnly=${interviewerOnly}, micId=${micId || 'null'}`);
     try {
         // 1. Get Audio Streams
         if (!interviewerOnly) {
             micStream = await navigator.mediaDevices.getUserMedia({ audio: { deviceId: { exact: micId } } });
+            console.log(`🎤 Mic stream acquired: ${micStream.getAudioTracks().length} audio track(s)`);
         }
         systemStream = await navigator.mediaDevices.getDisplayMedia({ video: true, audio: true });
 
+        // Log what we actually got — audio track presence is the #1 cause of "no voice picked up".
+        const sysAudioTracks = systemStream.getAudioTracks();
+        const sysVideoTracks = systemStream.getVideoTracks();
+        console.log(`🖥️ Display stream acquired: ${sysAudioTracks.length} audio track(s), ${sysVideoTracks.length} video track(s)`);
+        sysAudioTracks.forEach((t, i) => {
+            const settings = t.getSettings ? t.getSettings() : {};
+            console.log(`   ↳ audio[${i}]: label="${t.label}" enabled=${t.enabled} muted=${t.muted} readyState=${t.readyState} settings=`, settings);
+        });
+
         // Fail early if the required streams are missing.
         if (!systemStream) {
-            console.error("Could not get system/tab audio stream.");
+            console.error("❌ Could not get system/tab audio stream.");
             stopAudioProcessing();
             return false;
         }
         if (!interviewerOnly && !micStream) {
-            console.error("Could not get microphone stream.");
+            console.error("❌ Could not get microphone stream.");
             stopAudioProcessing();
             return false;
         }
         // In interviewer-only mode the shared audio track is the ONLY signal —
         // if the user forgot to check "Share tab/system audio", refuse to start.
-        if (interviewerOnly && systemStream.getAudioTracks().length === 0) {
-            console.error("Interviewer-only mode requires shared tab/system audio, but no audio track was granted.");
+        if (interviewerOnly && sysAudioTracks.length === 0) {
+            const msg = "Interviewer-only mode needs shared tab or system audio.\n\n" +
+                "You shared a screen/window/tab but did NOT enable audio sharing.\n\n" +
+                "Try again and:\n" +
+                "  • For a Chrome tab: check 'Share tab audio' in the picker\n" +
+                "  • For entire screen: check 'Share system audio'\n" +
+                "  • A window (application) cannot share audio — pick a tab or the whole screen instead";
+            console.error("❌ " + msg);
+            alert(msg);
             stopAudioProcessing();
             return false;
         }
 
-        // 2. Setup AudioContext and Worklet
+        // 2. Setup AudioContext and Worklet.
+        // Bust the browser cache for the worklet so edits to audio_processor.js
+        // actually take effect on next launch instead of running a stale copy.
         audioContext = new (window.AudioContext || window.webkitAudioContext)();
-        console.log(`🎵 AudioContext: ${audioContext.sampleRate}Hz`); // Keep this as it's important for debugging
-        await audioContext.audioWorklet.addModule('/static/js/audio_processor.js');
+        console.log(`🎵 AudioContext: ${audioContext.sampleRate}Hz state=${audioContext.state}`);
+        await audioContext.audioWorklet.addModule(`/static/js/audio_processor.js?v=${Date.now()}`);
 
         // 3. Create the processor. In interviewer-only mode the worklet skips
         // mixing math and passes the single system input through at full amplitude.
@@ -93,6 +113,7 @@ export async function startAudioProcessing(micId, onAudioData, opts = {}) {
 
         // Handle mixed audio with mute-aware speaker detection
         let audioProcessingCounter = 0; // For throttled logging
+        let firstChunkLogged = false;
 
         mixedProcessor.port.onmessage = (event) => {
             // If universally muted, drop all audio data immediately.
@@ -105,6 +126,16 @@ export async function startAudioProcessing(micId, onAudioData, opts = {}) {
             }
 
             const { audioData, micLevel, systemLevel } = event.data;
+
+            if (!firstChunkLogged) {
+                console.log(`🔊 First worklet message received: audioData=${audioData.byteLength}B micLevel=${micLevel.toFixed(5)} systemLevel=${systemLevel.toFixed(5)}`);
+                firstChunkLogged = true;
+            }
+            // Every ~2s at 48kHz/128-sample frames, log a heartbeat so we can see if audio is silent.
+            if (audioProcessingCounter % 750 === 0) {
+                console.log(`🔊 Audio heartbeat #${audioProcessingCounter}: micLevel=${micLevel.toFixed(5)} systemLevel=${systemLevel.toFixed(5)} bytes=${audioData.byteLength}`);
+            }
+
             let speakerHint;
 
             if (interviewerOnly) {

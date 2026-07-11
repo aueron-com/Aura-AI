@@ -14,9 +14,25 @@ class MixedProcessor extends AudioWorkletProcessor {
         // stream. Skip the -3dB attenuation that exists to prevent clipping when
         // two sources sum.
         this.interviewerOnly = !!processorOptions.interviewerOnly;
+        this.frameCount = 0;
+        this.loggedShape = false;
+        console.log(`🧩 MixedProcessor ctor — interviewerOnly=${this.interviewerOnly}`);
     }
 
     process(inputs, outputs, parameters) {
+        this.frameCount++;
+
+        // Log the actual shape of `inputs` on the first non-empty frame so we can
+        // tell whether audio is even reaching the worklet.
+        if (!this.loggedShape) {
+            const shape = inputs.map(inp => inp ? `${inp.length}ch×${inp[0] ? inp[0].length : 0}` : 'empty').join(', ');
+            const hasSamples = inputs[0] && inputs[0][0] && inputs[0][0].some(s => s !== 0);
+            if (hasSamples || this.frameCount > 100) {
+                console.log(`🧩 MixedProcessor first frame#${this.frameCount}: inputs.length=${inputs.length}, shape=[${shape}], hasNonZeroSamples=${hasSamples}`);
+                this.loggedShape = true;
+            }
+        }
+
         // We expect two inputs: [0] = microphone, [1] = system audio
         const micInput = inputs[0] && inputs[0][0] ? inputs[0][0] : new Float32Array(128);
         const systemInput = inputs[1] && inputs[1][0] ? inputs[1][0] : new Float32Array(128);
