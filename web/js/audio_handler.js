@@ -45,18 +45,37 @@ export async function setupMicrophone() {
 /**
  * Starts audio processing by setting up the AudioContext, loading the worklet,
  * and connecting the audio streams.
- * @param {string} micId - The deviceId of the selected microphone.
+ * @param {string|null} micId - The deviceId of the selected microphone. Ignored when opts.interviewerOnly is true.
  * @param {function} onAudioData - Callback function to handle the processed PCM audio data.
+ * @param {{ interviewerOnly?: boolean }} [opts] - Optional flags. When interviewerOnly is true,
+ *   the candidate microphone is not requested or captured; only the shared tab/system audio
+ *   from getDisplayMedia is fed to the worklet and every chunk is tagged speakerHint='system'.
  * @returns {Promise<boolean>} True if processing started successfully.
  */
-export async function startAudioProcessing(micId, onAudioData) {
+export async function startAudioProcessing(micId, onAudioData, opts = {}) {
+    const interviewerOnly = !!opts.interviewerOnly;
     try {
         // 1. Get Audio Streams
-        micStream = await navigator.mediaDevices.getUserMedia({ audio: { deviceId: { exact: micId } } });
+        if (!interviewerOnly) {
+            micStream = await navigator.mediaDevices.getUserMedia({ audio: { deviceId: { exact: micId } } });
+        }
         systemStream = await navigator.mediaDevices.getDisplayMedia({ video: true, audio: true });
 
-        if (!micStream || !systemStream) {
-            console.error("Could not get both audio streams.");
+        // Fail early if the required streams are missing.
+        if (!systemStream) {
+            console.error("Could not get system/tab audio stream.");
+            stopAudioProcessing();
+            return false;
+        }
+        if (!interviewerOnly && !micStream) {
+            console.error("Could not get microphone stream.");
+            stopAudioProcessing();
+            return false;
+        }
+        // In interviewer-only mode the shared audio track is the ONLY signal —
+        // if the user forgot to check "Share tab/system audio", refuse to start.
+        if (interviewerOnly && systemStream.getAudioTracks().length === 0) {
+            console.error("Interviewer-only mode requires shared tab/system audio, but no audio track was granted.");
             stopAudioProcessing();
             return false;
         }
@@ -65,13 +84,16 @@ export async function startAudioProcessing(micId, onAudioData) {
         audioContext = new (window.AudioContext || window.webkitAudioContext)();
         console.log(`🎵 AudioContext: ${audioContext.sampleRate}Hz`); // Keep this as it's important for debugging
         await audioContext.audioWorklet.addModule('/static/js/audio_processor.js');
-        
-        // 3. Create a single mixed processor for better diarization
-        const mixedProcessor = new AudioWorkletNode(audioContext, 'mixed-processor');
+
+        // 3. Create the processor. In interviewer-only mode the worklet skips
+        // mixing math and passes the single system input through at full amplitude.
+        const mixedProcessor = new AudioWorkletNode(audioContext, 'mixed-processor', {
+            processorOptions: { interviewerOnly }
+        });
 
         // Handle mixed audio with mute-aware speaker detection
         let audioProcessingCounter = 0; // For throttled logging
-        
+
         mixedProcessor.port.onmessage = (event) => {
             // If universally muted, drop all audio data immediately.
             if (muteManager.isAudioPaused()) {
@@ -85,10 +107,12 @@ export async function startAudioProcessing(micId, onAudioData) {
             const { audioData, micLevel, systemLevel } = event.data;
             let speakerHint;
 
-            if (muteManager.isMicrophoneMuted()) {
+            if (interviewerOnly) {
+                // No candidate audio path exists — every chunk is the interviewer.
+                speakerHint = 'system';
+            } else if (muteManager.isMicrophoneMuted()) {
                 // When microphone is muted, all audio is from the interviewer.
                 speakerHint = 'system';
-                // Logging removed to reduce console noise.
             } else {
                 // When unmuted, distinguish based on volume.
                 speakerHint = systemLevel > micLevel * 2 ? 'system' : 'microphone';
@@ -98,22 +122,22 @@ export async function startAudioProcessing(micId, onAudioData) {
             onAudioData(audioData, speakerHint);
         };
 
-        // 4. Connect both sources to the mixed processor with mute control
-        const micSource = audioContext.createMediaStreamSource(micStream);
+        // 4. Wire audio sources into the processor.
         const systemSource = audioContext.createMediaStreamSource(systemStream);
-        
-        // Create gain node for microphone muting
-        micGainNode = audioContext.createGain();
-        updateMicGainNode(); // Set initial gain based on mute manager state
-        
-        // Listen for future changes
-        muteManager.on('microphoneMuteChange', updateMicGainNode);
-        
-        // Connect mic through gain node for mute control
-        micSource.connect(micGainNode);
-        micGainNode.connect(mixedProcessor);
-        
-        // System audio connects directly (we don't want to mute interviewer)
+
+        if (!interviewerOnly) {
+            const micSource = audioContext.createMediaStreamSource(micStream);
+            // Gain node lets us mute the mic without tearing down the graph.
+            micGainNode = audioContext.createGain();
+            updateMicGainNode(); // Set initial gain based on mute manager state
+            muteManager.on('microphoneMuteChange', updateMicGainNode);
+
+            micSource.connect(micGainNode);
+            micGainNode.connect(mixedProcessor);
+        }
+
+        // System audio always connects directly (we don't want to mute interviewer).
+        // In interviewer-only mode this is input[0] on the worklet since no mic is wired.
         systemSource.connect(mixedProcessor);
 
         // Store the video track for screenshot reuse, but remove it from the stream
@@ -125,7 +149,7 @@ export async function startAudioProcessing(micId, onAudioData) {
             console.warn("⚠️ No video track found in display media stream");
         }
 
-        devLog("✅ Audio processing started successfully");
+        devLog(`✅ Audio processing started successfully${interviewerOnly ? ' (interviewer-only mode)' : ''}`);
         return true;
 
     } catch (err) {
