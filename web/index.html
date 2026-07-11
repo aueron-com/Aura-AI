@@ -50,6 +50,11 @@
                                 required>
                             <input type="text" id="user-role" placeholder="Target Role" required>
                             <textarea id="user-resume" placeholder="Paste your resume text here..." required></textarea>
+                            <div class="file-upload-row">
+                                <input type="file" id="user-resume-file" accept=".txt,.md,text/plain,text/markdown" hidden>
+                                <button type="button" class="file-upload-btn" data-target="user-resume-file">📎 Upload .txt or .md file</button>
+                                <span class="file-upload-hint" id="user-resume-file-hint"></span>
+                            </div>
                         </fieldset>
 
                         <fieldset class="grid-span-1">
@@ -69,6 +74,11 @@
                         <legend>Job Description / Requirements</legend>
                         <textarea id="user-objectives"
                             placeholder="Paste the job description or key requirements here to give the AI context."></textarea>
+                        <div class="file-upload-row">
+                            <input type="file" id="user-objectives-file" accept=".txt,.md,text/plain,text/markdown" hidden>
+                            <button type="button" class="file-upload-btn" data-target="user-objectives-file">📎 Upload .txt or .md file</button>
+                            <span class="file-upload-hint" id="user-objectives-file-hint"></span>
+                        </div>
                     </fieldset>
                 </div>
 

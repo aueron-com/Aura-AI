@@ -103,6 +103,62 @@ function setupTabs() {
     }
 }
 
+// --- File Upload Wiring ---
+// Lets users load a .txt/.md file into any textarea instead of pasting large
+// content by hand. The file's text is written to the textarea so the existing
+// form-capture pipeline (state-manager.getState → onboarding payload) is unchanged.
+const FILE_UPLOAD_MAX_BYTES = 5 * 1024 * 1024; // 5 MB is plenty for a resume/JD.
+function wireFileUploads() {
+    document.querySelectorAll('.file-upload-btn').forEach(btn => {
+        const inputId = btn.getAttribute('data-target');
+        const fileInput = document.getElementById(inputId);
+        if (!fileInput) return;
+
+        // The hidden <input type=file> is triggered by the visible button.
+        btn.addEventListener('click', () => fileInput.click());
+
+        fileInput.addEventListener('change', async () => {
+            const file = fileInput.files && fileInput.files[0];
+            if (!file) return;
+
+            // The corresponding textarea's id is the file input's id minus "-file".
+            const textareaId = inputId.replace(/-file$/, '');
+            const textarea = document.getElementById(textareaId);
+            const hint = document.getElementById(`${inputId}-hint`);
+            const setHint = (msg, isError = false) => {
+                if (!hint) return;
+                hint.textContent = msg;
+                hint.style.color = isError ? '#e57373' : '';
+            };
+
+            const name = file.name.toLowerCase();
+            if (!name.endsWith('.txt') && !name.endsWith('.md')) {
+                setHint(`Only .txt and .md files are supported (got "${file.name}").`, true);
+                fileInput.value = '';
+                return;
+            }
+            if (file.size > FILE_UPLOAD_MAX_BYTES) {
+                setHint(`File too large — max 5 MB (got ${(file.size / 1024 / 1024).toFixed(1)} MB).`, true);
+                fileInput.value = '';
+                return;
+            }
+
+            try {
+                const text = await file.text();
+                if (textarea) {
+                    textarea.value = text;
+                    // Fire input event so any listeners (validation, etc.) see the change.
+                    textarea.dispatchEvent(new Event('input', { bubbles: true }));
+                }
+                setHint(`Loaded "${file.name}" (${text.length.toLocaleString()} chars)`);
+            } catch (err) {
+                setHint(`Could not read file: ${err.message || err}`, true);
+                fileInput.value = '';
+            }
+        });
+    });
+}
+
 
 // --- View Management ---
 function switchView(targetView) {
@@ -320,6 +376,7 @@ window.addEventListener('DOMContentLoaded', async () => {
     setupDeveloperShortcuts();
     setupPresetHotkeys();
     setupTabs();
+    wireFileUploads();
     hotkeyManager.setEnabled(false);
     switchView('onboarding');
 });

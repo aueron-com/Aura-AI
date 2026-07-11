@@ -313,6 +313,45 @@ legend {
     box-shadow: 0 0 12px rgba(99, 102, 241, 0.2);
 }
 
+/* File upload row under textareas — for loading resume / job description from a .txt or .md file */
+.file-upload-row {
+    display: flex;
+    align-items: center;
+    gap: var(--space-sm);
+    margin-top: var(--space-xs);
+    flex-wrap: wrap;
+}
+
+.file-upload-btn {
+    display: inline-block;
+    width: auto;
+    padding: 4px 12px;
+    font-size: 11px;
+    font-weight: 500;
+    text-transform: none;
+    letter-spacing: 0.02em;
+    color: var(--accent-primary);
+    background: transparent;
+    border: 1px solid rgba(99, 102, 241, 0.25);
+    border-radius: var(--radius-pill);
+    cursor: pointer;
+    transition: all var(--transition-fast);
+    line-height: 1.6;
+}
+
+.file-upload-btn:hover {
+    background: var(--accent-glow);
+    border-color: var(--accent-primary);
+    color: #fff;
+    box-shadow: 0 0 8px rgba(99, 102, 241, 0.15);
+}
+
+.file-upload-hint {
+    font-size: 11px;
+    color: var(--text-secondary, #9aa0b0);
+    opacity: 0.8;
+}
+
 /* ===== FORM ELEMENTS ===== */
 input[type="text"],
 input[type="password"],
