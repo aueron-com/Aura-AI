@@ -45,6 +45,25 @@ const micSelect = document.getElementById('mic-select');
 const proceedButton = document.getElementById('proceed-to-checks');
 const startButton = document.getElementById('start-interview-button');
 const backButton = document.getElementById('back-to-onboarding-btn');
+const interviewerOnlyToggle = document.getElementById('interviewer-only-toggle');
+
+// Persisted setting: when true, we do not request or capture the candidate mic.
+// Only the system/tab-audio stream from getDisplayMedia is transcribed.
+const INTERVIEWER_ONLY_STORAGE_KEY = 'aura.interviewerOnly';
+function isInterviewerOnlyEnabled() {
+    return localStorage.getItem(INTERVIEWER_ONLY_STORAGE_KEY) === '1';
+}
+function setInterviewerOnlyEnabled(enabled) {
+    localStorage.setItem(INTERVIEWER_ONLY_STORAGE_KEY, enabled ? '1' : '0');
+}
+if (interviewerOnlyToggle) {
+    interviewerOnlyToggle.checked = isInterviewerOnlyEnabled();
+    interviewerOnlyToggle.addEventListener('change', () => {
+        setInterviewerOnlyEnabled(interviewerOnlyToggle.checked);
+        // Re-run pre-flight so mic checks reflect the new mode.
+        runPreFlightChecks();
+    });
+}
 
 // --- Tab Management ---
 function setupTabs() {
@@ -100,19 +119,28 @@ function handleOnboarding() {
 
 async function runPreFlightChecks() {
     // --- 1. Microphone Check ---
-    // First, ensure we have microphone permissions as this is a prerequisite.
+    // First, ensure we have microphone permissions as this is a prerequisite —
+    // UNLESS interviewer-only mode is enabled, in which case we skip mic setup
+    // entirely and mark the mic checks as green ("Skipped") so the existing
+    // checkAllSystemsGo gate lets the user start.
     const micPermissionCheck = document.getElementById('check-mic-permission');
     const micSelectionCheck = document.getElementById('check-mic-selection');
 
-    providerManager.webSocketHandler.updateCheckStatus(micPermissionCheck, 'pending', 'Requesting Microphone...');
-    const micPermission = await setupMicrophone();
-    if (micPermission) {
-        providerManager.webSocketHandler.updateCheckStatus(micPermissionCheck, 'success', 'Microphone Permission OK');
-        providerManager.webSocketHandler.updateCheckStatus(micSelectionCheck, 'success', 'Microphone Selection Ready');
+    if (isInterviewerOnlyEnabled()) {
+        providerManager.webSocketHandler.updateCheckStatus(micPermissionCheck, 'success', 'Skipped (Interviewer-only mode)');
+        providerManager.webSocketHandler.updateCheckStatus(micSelectionCheck, 'success', 'Skipped (Interviewer-only mode)');
+        micSelect.disabled = true;
     } else {
-        providerManager.webSocketHandler.updateCheckStatus(micPermissionCheck, 'error', 'Microphone Permission Denied');
-        providerManager.webSocketHandler.updateCheckStatus(micSelectionCheck, 'error', 'Microphone Selection Failed');
-        return;
+        providerManager.webSocketHandler.updateCheckStatus(micPermissionCheck, 'pending', 'Requesting Microphone...');
+        const micPermission = await setupMicrophone();
+        if (micPermission) {
+            providerManager.webSocketHandler.updateCheckStatus(micPermissionCheck, 'success', 'Microphone Permission OK');
+            providerManager.webSocketHandler.updateCheckStatus(micSelectionCheck, 'success', 'Microphone Selection Ready');
+        } else {
+            providerManager.webSocketHandler.updateCheckStatus(micPermissionCheck, 'error', 'Microphone Permission Denied');
+            providerManager.webSocketHandler.updateCheckStatus(micSelectionCheck, 'error', 'Microphone Selection Failed');
+            return;
+        }
     }
 
     // --- 2. Backend Connection and Session Establishment (NEW ASYNC FLOW) ---
@@ -148,11 +176,18 @@ async function startInterview() {
     liveInterviewUI.initialize();
     hotkeyManager.setEnabled(true);
 
+    const interviewerOnly = isInterviewerOnlyEnabled();
     const onAudioData = (audioData, speakerHint) => {
-        webSocketHandler.sendAudioChunk(audioData, muteManager.isMicrophoneMuted());
+        // In interviewer-only mode there is no mic, so is_muted is always false.
+        const isMuted = interviewerOnly ? false : muteManager.isMicrophoneMuted();
+        webSocketHandler.sendAudioChunk(audioData, isMuted);
     };
 
-    const processingStarted = await startAudioProcessing(micSelect.value, onAudioData);
+    const processingStarted = await startAudioProcessing(
+        interviewerOnly ? null : micSelect.value,
+        onAudioData,
+        { interviewerOnly }
+    );
 
     if (!processingStarted) {
         alert("Could not start audio streams. Please check permissions and try again.");

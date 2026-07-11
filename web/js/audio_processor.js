@@ -5,17 +5,38 @@
  * while tracking volume levels for speaker detection.
  */
 class MixedProcessor extends AudioWorkletProcessor {
-    constructor() {
+    constructor(options) {
         super();
         this.micInputIndex = 0;
         this.systemInputIndex = 1;
+        const processorOptions = (options && options.processorOptions) || {};
+        // When true, no mic source is connected; the single input is the system
+        // stream. Skip the -3dB attenuation that exists to prevent clipping when
+        // two sources sum.
+        this.interviewerOnly = !!processorOptions.interviewerOnly;
+        this.frameCount = 0;
+        this.loggedShape = false;
+        console.log(`🧩 MixedProcessor ctor — interviewerOnly=${this.interviewerOnly}`);
     }
 
     process(inputs, outputs, parameters) {
+        this.frameCount++;
+
+        // Log the actual shape of `inputs` on the first non-empty frame so we can
+        // tell whether audio is even reaching the worklet.
+        if (!this.loggedShape) {
+            const shape = inputs.map(inp => inp ? `${inp.length}ch×${inp[0] ? inp[0].length : 0}` : 'empty').join(', ');
+            const hasSamples = inputs[0] && inputs[0][0] && inputs[0][0].some(s => s !== 0);
+            if (hasSamples || this.frameCount > 100) {
+                console.log(`🧩 MixedProcessor first frame#${this.frameCount}: inputs.length=${inputs.length}, shape=[${shape}], hasNonZeroSamples=${hasSamples}`);
+                this.loggedShape = true;
+            }
+        }
+
         // We expect two inputs: [0] = microphone, [1] = system audio
         const micInput = inputs[0] && inputs[0][0] ? inputs[0][0] : new Float32Array(128);
         const systemInput = inputs[1] && inputs[1][0] ? inputs[1][0] : new Float32Array(128);
-        
+
         const frameLength = Math.max(micInput.length, systemInput.length);
         if (frameLength === 0) return true;
 
@@ -24,13 +45,14 @@ class MixedProcessor extends AudioWorkletProcessor {
         let micLevel = 0;
         let systemLevel = 0;
 
+        const scale = this.interviewerOnly ? 1 : 0.7;
+
         for (let i = 0; i < frameLength; i++) {
             const micSample = i < micInput.length ? micInput[i] : 0;
             const systemSample = i < systemInput.length ? systemInput[i] : 0;
-            
-            // Mix the audio (simple addition with slight attenuation)
-            mixedAudio[i] = (micSample + systemSample) * 0.7;
-            
+
+            mixedAudio[i] = (micSample + systemSample) * scale;
+
             // Track volume levels
             micLevel += Math.abs(micSample);
             systemLevel += Math.abs(systemSample);
