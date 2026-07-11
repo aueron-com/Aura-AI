@@ -70,6 +70,7 @@ Proctoring platforms like **Proctorio**, **Honorlock**, **ExamSoft**, **Respondu
 - **Never maximize/minimize** the AI window manually
 - **AVOID Alt+X during sessions** - Can accidentally disable ghost mode and make window clickable
 - **Do NOT change the Windows default audio output device mid-interview** - "Share system audio" binds to whichever playback device was default when you started; switching (e.g. speakers ↔ Bluetooth headphones) silently breaks transcription until you end and restart the interview. Pick your output device before clicking Start Interview and leave it alone.
+- **Match the call app's speaker setting to the Windows default BEFORE starting** - Meet, Zoom, Teams, Brave, Chrome, etc. each have their own in-app "Speaker" dropdown that overrides the Windows default. If the app is routed to a different device than the one Aura is capturing, the interviewer's voice will never reach Aura even though everything else looks fine (local media like YouTube/podcasts will still transcribe, which makes the failure confusing to debug). Fix: open the call app's audio settings and set its Speaker to the same physical device that Windows lists as Default. Do this once before clicking Start Interview.
 
 ## 🎮 Complete Hotkey Reference
 

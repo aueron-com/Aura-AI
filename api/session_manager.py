@@ -12,6 +12,13 @@ from services.vision_service import vision_service
 # Session TTL: 30 minutes of inactivity with no WebSocket connected
 SESSION_TTL_SECONDS = 30 * 60
 
+# How long to wait after the last transcript before firing the LLM. Longer =
+# fewer accidental splits when interviewers pause mid-question; shorter =
+# faster time-to-first-token. 2.5s coalesces natural pauses without excessive
+# latency; Deepgram's own utterance_end_ms already gives ~2s of tolerance
+# upstream, so this is defense-in-depth against fragmentation.
+SILENCE_WINDOW_SECONDS = 2.5
+
 class InterviewSession:
     """
     Represents a single, stateful interview session.
@@ -256,7 +263,7 @@ class InterviewSession:
     async def _delayed_processing(self):
         """Wait for the silence window, then process. Wrapped so cancellation
         during the sleep phase (no answer sent yet) is silent."""
-        await asyncio.sleep(1.5)
+        await asyncio.sleep(SILENCE_WINDOW_SECONDS)
         await self._process_aggregated_transcript()
 
     async def on_transcript(self, data):

@@ -15,6 +15,13 @@ class LiveInterviewUI {
         this.currentInterviewerElement = null; // Track interviewer message separately
         this.currentCandidateElement = null; // Track candidate message separately
         this.currentAIElement = null; // Track AI message separately
+        // Coalescing: if a new interviewer FINAL arrives shortly after the last
+        // one was finalized, merge into the same bubble instead of creating a
+        // new one. Prevents one question spoken with natural mid-pauses from
+        // rendering as multiple "INTERVIEWER" bubbles.
+        this.lastInterviewerElement = null;
+        this.lastInterviewerFinalizedAt = 0;
+        this.INTERVIEWER_COALESCE_MS = 3000;
         this.isStreaming = false;
         this.eventsInitialized = false;
         
@@ -353,6 +360,15 @@ class LiveInterviewUI {
         this.scrollState.isLiveSpeaking = true;
 
         if (isInterim) {
+            // If the previous bubble is still within the coalesce window and
+            // there's no live interim element, reuse the previous bubble so
+            // interims flow into it — no visual jump between "finalized" and
+            // "now-typing".
+            if (!this.currentInterviewerElement && this.lastInterviewerElement &&
+                (Date.now() - this.lastInterviewerFinalizedAt) < this.INTERVIEWER_COALESCE_MS) {
+                this.currentInterviewerElement = this.lastInterviewerElement;
+                this.lastInterviewerElement = null;
+            }
             if (!this.currentInterviewerElement) {
                 this.currentInterviewerElement = this.createMessageElement('', 'interviewer');
                 this.conversationStream.appendChild(this.currentInterviewerElement);
@@ -362,8 +378,25 @@ class LiveInterviewUI {
         } else {
             if (this.currentInterviewerElement) {
                 this.finalizeInterviewerMessage(question);
+            } else if (this.lastInterviewerElement &&
+                       (Date.now() - this.lastInterviewerFinalizedAt) < this.INTERVIEWER_COALESCE_MS) {
+                // FINAL arrived shortly after the last one was closed — merge
+                // into that same bubble instead of creating a new "INTERVIEWER"
+                // bubble for what is really the second half of one question.
+                this.currentInterviewerElement = this.lastInterviewerElement;
+                this.lastInterviewerElement = null;
+                const contentDiv = this.currentInterviewerElement.querySelector('.streaming-text');
+                const existing = (contentDiv.textContent || '').trim();
+                const merged = existing ? `${existing} ${question}` : question;
+                this.finalizeInterviewerMessage(merged);
             } else {
                 this.addMessage(question, 'interviewer');
+                // Track the just-created message so the next FINAL can coalesce.
+                const messages = this.conversationStream.querySelectorAll('.message.interviewer');
+                if (messages.length) {
+                    this.lastInterviewerElement = messages[messages.length - 1];
+                    this.lastInterviewerFinalizedAt = Date.now();
+                }
             }
             this.hideActivity();
             this.updateEmptyState();
@@ -917,16 +950,24 @@ class LiveInterviewUI {
             const contentDiv = this.currentInterviewerElement.querySelector('.streaming-text');
             contentDiv.innerHTML = '';
             
+            // Capture the element locally BEFORE we release currentInterviewerElement
+            // so the streaming callback still has a valid handle to mark complete.
+            const finalizedEl = this.currentInterviewerElement;
+
             // Use streaming module for final content
             this.streaming.streamContent(contentDiv, content, this.streaming.config.streamingSpeed).then(() => {
-                if (this.currentInterviewerElement) {
-                    this.currentInterviewerElement.classList.add('complete');
+                if (finalizedEl) {
+                    finalizedEl.classList.add('complete');
                 }
             });
-            
-            // Clear the reference since this is final
+
+            // Release the "currently streaming" slot but hold the element in
+            // lastInterviewerElement so a follow-up FINAL within the coalesce
+            // window can merge into it instead of creating a second bubble.
+            this.lastInterviewerElement = finalizedEl;
+            this.lastInterviewerFinalizedAt = Date.now();
             this.currentInterviewerElement = null;
-            
+
             // Reset auto-scroll for new response
             this.autoScrollEnabled = true;
         }

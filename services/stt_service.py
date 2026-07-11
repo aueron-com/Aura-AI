@@ -194,9 +194,13 @@ class DeepgramManager:
             sample_rate=48000,  # Ensure this matches your audio source
             diarize=False,
             punctuate=True,
-            # Critical speech detection parameters
-            utterance_end_ms=1000,    # Wait 1.2 seconds after speech ends to finalize
-            endpointing=600,          # Wait 0.8 seconds of silence before endpoint detection
+            # Critical speech detection parameters — tuned to tolerate the ~1-2s
+            # mid-sentence pauses interviewers naturally make ("Your ECS deploy
+            # succeeded, [pause] but users still get 503..."). Too aggressive and
+            # Deepgram splits one question into two FINALs → two bubbles + two AI
+            # answers. Total silence tolerance = endpointing + utterance_end_ms.
+            utterance_end_ms=2000,    # Wait 2s after endpoint before finalizing utterance
+            endpointing=800,          # Wait 0.8s of silence before considering it an endpoint
             # Additional settings
             vad_events=True,          # Enable VAD for better pause handling
             interim_results=True,     # Enable interim results for real-time feedback
