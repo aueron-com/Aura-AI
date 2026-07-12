@@ -374,10 +374,21 @@ class LiveInterviewUI {
                 this.conversationStream.appendChild(this.currentInterviewerElement);
                 this.updateEmptyState();
             }
-            this.updateInterviewerMessage(this.currentInterviewerElement.querySelector('.streaming-text').textContent + ' ' + question);
+            // Build the interim display from the *finalized* portion of the bubble
+            // (previous completed sentences) plus the current interim. Reading
+            // `.textContent` would include prior interim text and double it up.
+            const finalizedText = this.currentInterviewerElement.dataset.finalizedText || '';
+            const combined = finalizedText ? `${finalizedText} ${question}` : question;
+            this.updateInterviewerMessage(combined);
         } else {
             if (this.currentInterviewerElement) {
-                this.finalizeInterviewerMessage(question);
+                // Merge the new FINAL sentence with any previously finalized text
+                // in this bubble — otherwise finalizeInterviewerMessage would wipe
+                // earlier sentences and only show the last one.
+                const prevFinalized = this.currentInterviewerElement.dataset.finalizedText || '';
+                const merged = prevFinalized ? `${prevFinalized} ${question}` : question;
+                this.currentInterviewerElement.dataset.finalizedText = merged;
+                this.finalizeInterviewerMessage(merged);
             } else if (this.lastInterviewerElement &&
                        (Date.now() - this.lastInterviewerFinalizedAt) < this.INTERVIEWER_COALESCE_MS) {
                 // FINAL arrived shortly after the last one was closed — merge
@@ -385,9 +396,9 @@ class LiveInterviewUI {
                 // bubble for what is really the second half of one question.
                 this.currentInterviewerElement = this.lastInterviewerElement;
                 this.lastInterviewerElement = null;
-                const contentDiv = this.currentInterviewerElement.querySelector('.streaming-text');
-                const existing = (contentDiv.textContent || '').trim();
-                const merged = existing ? `${existing} ${question}` : question;
+                const prevFinalized = this.currentInterviewerElement.dataset.finalizedText || '';
+                const merged = prevFinalized ? `${prevFinalized} ${question}` : question;
+                this.currentInterviewerElement.dataset.finalizedText = merged;
                 this.finalizeInterviewerMessage(merged);
             } else {
                 this.addMessage(question, 'interviewer');
@@ -395,6 +406,7 @@ class LiveInterviewUI {
                 const messages = this.conversationStream.querySelectorAll('.message.interviewer');
                 if (messages.length) {
                     this.lastInterviewerElement = messages[messages.length - 1];
+                    this.lastInterviewerElement.dataset.finalizedText = question;
                     this.lastInterviewerFinalizedAt = Date.now();
                 }
             }
