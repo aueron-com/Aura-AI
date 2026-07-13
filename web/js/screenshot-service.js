@@ -649,13 +649,18 @@ Focus on being educational and helping understand both the solutions and the und
                 
                 // Return a promise that resolves when we get the response
                 return new Promise((resolve, reject) => {
+                    // Frontend must exceed backend per-key timeout (75s in
+                    // services/vision_service.py) plus buffer for the WebSocket
+                    // round-trip and rendering. Prior 45s value fired before the
+                    // backend had a chance to respond, making successful calls
+                    // look like failures.
                     const timeout = setTimeout(() => {
                         // Hide processing status on timeout
                         if (window.webSocketHandler && window.webSocketHandler.hideVisionProcessingStatus) {
                             window.webSocketHandler.hideVisionProcessingStatus();
                         }
-                        reject(new Error('Vision analysis timeout (45s)'));
-                    }, 45000); // Reduced to 45 seconds to match backend optimization
+                        reject(new Error('Vision analysis timeout (120s)'));
+                    }, 120000);
                     
                     // This would be handled by the WebSocket message handler
                     window.visionAnalysisResolver = (result) => {
